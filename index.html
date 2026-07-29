@@ -103,6 +103,28 @@
   .bm-subtab:hover { transform: translateY(-1px); }
   .bm-subtab.active { background:#facc15; }
 
+  .bm-searchbar {
+    display:flex; align-items:center; gap:10px; background:#fff; border-radius:999px;
+    border:1px solid #e5e7eb; box-shadow: 0 1px 6px rgba(0,0,0,0.08); padding:6px 8px 6px 22px;
+    margin-bottom:22px; max-width:720px;
+  }
+  .bm-searchbar-input {
+    flex:1; border:none; outline:none; font-size:15px; font-family:inherit; background:transparent; min-width:0;
+  }
+  .bm-searchbar-btn {
+    background:#0a0a0a; color:#facc15; border:none; border-radius:999px; padding:11px 24px;
+    font-size:13px; font-weight:800; letter-spacing:0.03em; cursor:pointer; white-space:nowrap;
+  }
+  .bm-searchbar-btn:hover { background:#262626; }
+
+  .admin-only { display: none; }
+  body.admin-mode .admin-only { display: revert; }
+  body.admin-mode .tabs { display: flex; }
+  body:not(.admin-mode) .tabs { display: none; }
+  body:not(.admin-mode) .panel:not(#panel-brandmatch) { display: none !important; }
+  body:not(.admin-mode) #panel-brandmatch { display: block !important; }
+  .admin-hint { position: fixed; bottom: 6px; right: 8px; font-size: 10px; color: #d1d5db; text-decoration: none; }
+
   .bm-input-card { border:3px solid #0a0a0a; border-radius:18px; padding:18px; background:#fff; box-shadow: 5px 5px 0 #0a0a0a; margin-bottom: 22px; }
   .bm-input-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
   .bm-input {
@@ -141,8 +163,8 @@
 </style>
 </head>
 <body>
-<h1>Creator Database</h1>
-<p class="subtitle">Last updated: July 2026 · Data from YouTube API + manual curation</p>
+<h1 class="admin-only">Creator Database</h1>
+<p class="subtitle admin-only">Last updated: July 2026 · Data from YouTube API + manual curation</p>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('manual')">📋 My Influencers</div>
@@ -270,12 +292,12 @@
     <button class="bm-subtab" data-bmtab="rival" onclick="switchBmTab('rival')">🧭 Rival Radar</button>
   </div>
 
-  <div class="bm-input-card">
-    <div class="bm-input-row">
-      <input id="bm-brand-name" type="text" placeholder="brand name (e.g. Acme Foods)" class="bm-input">
-      <button class="bm-analyze-btn" onclick="runBrandMatch()">ANALYZE →</button>
-    </div>
-    <textarea id="bm-textarea" placeholder="paste brand website copy here — homepage + a product page works best..." class="bm-textarea"></textarea>
+  <div class="bm-searchbar">
+    <input id="bm-brand-name" type="text" placeholder="paste the brand's website URL — e.g. https://acmefoods.com" class="bm-searchbar-input" onkeydown="if(event.key==='Enter') runBrandMatch()">
+    <button class="bm-searchbar-btn" onclick="runBrandMatch()">Analyze</button>
+  </div>
+
+  <div class="admin-only bm-input-card">
     <div class="bm-input-footer">
       <div class="bm-preset-row">
         <span class="bm-preset-label">try:</span>
@@ -283,9 +305,10 @@
         <button class="bm-preset-btn" onclick="loadPreset('MuscleBlaze')">MuscleBlaze</button>
       </div>
       <details class="bm-advanced">
-        <summary>advanced: Gemini proxy</summary>
-        <input id="bm-proxy-url" type="text" placeholder="Cloudflare Worker URL (optional)" class="bm-input bm-input-small" onchange="localStorage.setItem('gemini_proxy_url', this.value.trim())">
-        <span class="note" style="display:block; margin-top:4px;">Leave blank to use local keyword-matching. Set once — remembered on this browser.</span>
+        <summary>admin: override Gemini proxy + manual paste fallback</summary>
+        <input id="bm-proxy-url" type="text" placeholder="Cloudflare Worker URL (leave blank to use the built-in default)" class="bm-input bm-input-small" onchange="localStorage.setItem('gemini_proxy_url', this.value.trim())">
+        <span class="note" style="display:block; margin:4px 0 8px;">End users never see this — the Worker URL is baked into the site by default. This override is just for you to test a different Worker.</span>
+        <textarea id="bm-textarea" placeholder="fallback: paste brand website copy here to test analysis without a URL..." class="bm-textarea"></textarea>
       </details>
     </div>
   </div>
@@ -3006,21 +3029,42 @@ function creatorsForTrackedBrand(brandName) {
   return rows;
 }
 
-// ── GEMINI PROXY (optional — falls back to local keyword matching) ───────
+// ── GEMINI PROXY ───────────────────────────────────────────────────────
+// Baked-in default so end users never see or configure anything — this is
+// just the Worker's public URL (not a secret; the actual Gemini key lives
+// server-side in the Worker, locked to this domain via CORS). The
+// admin-only input/localStorage override below is for testing a different
+// Worker, never shown in the plain end-user view.
+const DEFAULT_GEMINI_PROXY_URL = "https://tight-cherry-1103.abhiraj-parashari.workers.dev/";
+
 function getProxyUrl() {
+  const override = localStorage.getItem('gemini_proxy_url');
+  if (override) return override;
   const field = document.getElementById('bm-proxy-url');
-  return (field && field.value.trim()) || localStorage.getItem('gemini_proxy_url') || '';
+  if (field && field.value.trim()) return field.value.trim();
+  return DEFAULT_GEMINI_PROXY_URL;
 }
 
-async function buildProfileFromGemini(text, proxyUrl) {
+async function analyzeViaGemini(proxyUrl, payload) {
   const res = await fetch(proxyUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `proxy returned ${res.status}`);
   return normalizeWeights(data.weights || {});
+}
+
+function looksLikeUrl(s) {
+  s = (s || '').trim();
+  if (/^https?:\/\//i.test(s)) return true;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(s) && !s.includes(' ');
+}
+
+function normalizeUrlInput(s) {
+  s = s.trim();
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
 }
 
 // ── RENDERING ────────────────────────────────────────────────────────────
@@ -3028,35 +3072,57 @@ let bmActiveTab = 'creator';
 let bmLastState = null; // { brandLabel, weights, method } — cached so tab switches don't need a re-analysis
 
 async function runBrandMatch() {
-  const text = document.getElementById('bm-textarea').value;
-  const brandLabel = document.getElementById('bm-brand-name').value.trim() || "This brand";
-  if (!text || text.trim().length < 20) {
-    alert("Paste some brand website copy first (homepage + a product page works best), or click a preset.");
+  const brandInput = document.getElementById('bm-brand-name').value.trim();
+  const pastedText = document.getElementById('bm-textarea').value.trim();
+  const proxyUrl = getProxyUrl();
+
+  if (!brandInput && !pastedText) {
+    alert("Paste a brand website URL above, or click a preset.");
     return;
   }
 
-  const proxyUrl = getProxyUrl();
+  const isUrl = brandInput && looksLikeUrl(brandInput);
+  const brandLabel = brandInput || "This brand";
   let weights = null;
   let method = 'local';
 
-  if (proxyUrl) {
-    document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">analyzing with gemini…</p>';
+  if (isUrl && proxyUrl) {
+    document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">fetching site + analyzing with gemini…</p>';
     try {
-      weights = await buildProfileFromGemini(text, proxyUrl);
+      weights = await analyzeViaGemini(proxyUrl, { url: normalizeUrlInput(brandInput) });
       if (Object.keys(weights).length) method = 'gemini';
     } catch (e) {
-      console.warn('Gemini proxy failed, falling back to local keyword match:', e.message);
+      console.warn('URL fetch+analyze failed:', e.message);
+      weights = null;
+    }
+  }
+
+  if ((!weights || !Object.keys(weights).length) && pastedText && proxyUrl) {
+    document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">analyzing pasted text with gemini…</p>';
+    try {
+      weights = await analyzeViaGemini(proxyUrl, { text: pastedText });
+      if (Object.keys(weights).length) method = 'gemini';
+    } catch (e) {
+      console.warn('Gemini text analysis failed:', e.message);
       weights = null;
     }
   }
 
   if (!weights || !Object.keys(weights).length) {
-    weights = buildProfileFromText(text);
-    method = proxyUrl ? 'local-fallback' : 'local';
+    if (pastedText) {
+      weights = buildProfileFromText(pastedText);
+      method = proxyUrl ? 'local-fallback' : 'local';
+    } else if (isUrl && !proxyUrl) {
+      document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">No Gemini proxy set, so this site can\'t fetch that URL directly (browser security rules). Set a Gemini Proxy URL above, or expand "advanced" and paste the brand\'s page text instead.</p>';
+      return;
+    } else {
+      weights = buildProfileFromText(brandInput);
+      method = 'local';
+    }
   }
 
   if (!Object.keys(weights).length) {
-    document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">No category signal found in that text — try pasting more product-specific copy.</p>';
+    document.getElementById('bm-results').innerHTML = '<p class="bm-empty-state">No category signal found — try a different URL, or paste more product-specific text.</p>';
     return;
   }
   bmLastState = { brandLabel, weights, method };
@@ -3066,7 +3132,7 @@ async function runBrandMatch() {
 function loadPreset(name) {
   const weights = normalizeWeights(PRESET_BRAND_PROFILES[name]);
   document.getElementById('bm-brand-name').value = name;
-  document.getElementById('bm-textarea').value = `[Preset profile loaded for ${name} — built earlier from their real site copy. Click "Analyze" again after editing, or just view results below.]`;
+  document.getElementById('bm-textarea').value = '';
   bmLastState = { brandLabel: name, weights, method: 'preset' };
   renderActiveBmTab();
 }
@@ -3160,7 +3226,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('gemini_proxy_url');
   const field = document.getElementById('bm-proxy-url');
   if (saved && field) field.value = saved;
+
+  // Admin/reference view: only reachable via ?admin=1 or #admin — everyone
+  // else always sees the plain single-page Brand Match view, no other tabs.
+  const isAdmin = location.search.includes('admin=1') || location.hash.includes('admin');
+  if (isAdmin) {
+    document.body.classList.add('admin-mode');
+    const manualTab = document.querySelector('.tab[onclick*="brandmatch"]');
+    if (manualTab) manualTab.click();
+  }
 });
 </script>
+<a class="admin-hint" href="?admin=1">·</a>
 </body>
 </html>
