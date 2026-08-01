@@ -665,6 +665,11 @@
   background:conic-gradient(from 200deg, var(--lime) 0deg, #F5C242 60deg, var(--coral) 140deg, var(--purple) 220deg, var(--cyan) 300deg, var(--lime) 360deg) !important;
 }
 </style>
+  <style id="redesign-v3-fix2">
+#panel-brandmatch .bm-hero-deco-ring{
+  background:conic-gradient(from 200deg, var(--lime) 0deg, #F5C242 60deg, var(--coral) 140deg, var(--purple) 220deg, var(--cyan) 300deg, var(--lime) 360deg) !important;
+}
+</style>
 </head>
 <body>
 <h1 class="admin-only">Creator Database</h1>
@@ -4568,8 +4573,8 @@ renderReviewGrid();
     var p = 0;
     clearInterval(analysisTimer);
     analysisTimer = setInterval(function(){
-      p = Math.min(96, p + 2);
-      if(num) num.textContent = p;
+      p = Math.min(96, p + 1.2);
+      if(num) num.textContent = Math.round(p);
       var i = Math.min(3, Math.floor(p/25));
       if(txt) txt.textContent = STAGES[i];
       dots.forEach(function(d,j){
@@ -4583,34 +4588,40 @@ renderReviewGrid();
     clearInterval(analysisTimer);
     var box = document.getElementById('analyzing');
     var ringDeco = document.querySelector('.bm-hero-deco-ring');
-    if(box) box.classList.remove('on');
-    if(ringDeco) ringDeco.classList.remove('shrink');
+    var num = document.getElementById('pctNum');
+    if(num) num.textContent = 100;
+    setTimeout(function(){
+      if(box) box.classList.remove('on');
+      if(ringDeco) ringDeco.classList.remove('shrink');
+    }, 220);
   }
 
-  function wireAnalyzeButton(){
-    var btn = document.querySelector('#panel-brandmatch .bm-searchbar-btn');
-    if(!btn || btn.dataset.redesignV3) return;
-    btn.dataset.redesignV3 = '1';
-    btn.addEventListener('click', function(){ startAnalyzingUI(); }, true);
-    var input = document.getElementById('bm-brand-name');
-    if(input){
-      input.addEventListener('keydown', function(e){
-        if(e.key === 'Enter') startAnalyzingUI();
-      }, true);
-    }
-  }
-
-  function watchForResults(){
-    var resultsArea = document.querySelector('#panel-brandmatch .bm-results-area');
-    if(!resultsArea) return;
-    var obs = new MutationObserver(function(){ stopAnalyzingUI(); });
-    obs.observe(resultsArea, {childList:true, subtree:true});
+  function wrapRunBrandMatch(){
+    if(typeof window.runBrandMatch !== 'function' || window.runBrandMatch.__redesignV3Wrapped) return;
+    var original = window.runBrandMatch;
+    var wrapped = function(){
+      startAnalyzingUI();
+      var result;
+      try{
+        result = original.apply(this, arguments);
+      }catch(e){
+        stopAnalyzingUI();
+        throw e;
+      }
+      if(result && typeof result.then === 'function'){
+        result.then(stopAnalyzingUI, stopAnalyzingUI);
+      } else {
+        setTimeout(stopAnalyzingUI, 3000);
+      }
+      return result;
+    };
+    wrapped.__redesignV3Wrapped = true;
+    window.runBrandMatch = wrapped;
   }
 
   function init(){
     buildHero();
-    wireAnalyzeButton();
-    watchForResults();
+    wrapRunBrandMatch();
   }
 
   var mo = new MutationObserver(init);
