@@ -3867,19 +3867,17 @@ function maybeCleanAndReanalyze() {
     if (!input || !input.value) return;
     var cleaned = cleanUrlForAnalysis(input.value);
     if (cleaned !== input.value.trim()) {
-      input.value = cleaned;
-      var analyzeBtn = [...document.querySelectorAll('button')].find(function(b) {
-        return /^analyze$/i.test((b.textContent || '').trim());
-      });
-      if (analyzeBtn) analyzeBtn.click();
+      var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      nativeSetter.call(input, cleaned);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      setTimeout(function() {
+        var analyzeBtn = [...document.querySelectorAll('button')].find(function(b) {
+          return /^analyze$/i.test((b.textContent || '').trim());
+        });
+        if (analyzeBtn) analyzeBtn.click();
+      }, 30);
     }
   }
-
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
-    setTimeout(maybeCleanAndReanalyze, 50);
-  }, true);
 
   // ---- Fix 2: inject the live ad-check button into Rival Radar results ----
   function getWorkerUrl() {
