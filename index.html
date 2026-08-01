@@ -3860,16 +3860,25 @@ renderReviewGrid();
     }
   }
 
-document.addEventListener('click', function(e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
+function maybeCleanAndReanalyze() {
     var input = document.querySelector(
       'input[placeholder*="website URL" i], input[placeholder*="brand" i]'
     );
-    if (input && input.value) {
-      var cleaned = cleanUrlForAnalysis(input.value);
-      if (cleaned !== input.value.trim()) input.value = cleaned;
+    if (!input || !input.value) return;
+    var cleaned = cleanUrlForAnalysis(input.value);
+    if (cleaned !== input.value.trim()) {
+      input.value = cleaned;
+      var analyzeBtn = [...document.querySelectorAll('button')].find(function(b) {
+        return /^analyze$/i.test((b.textContent || '').trim());
+      });
+      if (analyzeBtn) analyzeBtn.click();
     }
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    setTimeout(maybeCleanAndReanalyze, 50);
   }, true);
 
   // ---- Fix 2: inject the live ad-check button into Rival Radar results ----
