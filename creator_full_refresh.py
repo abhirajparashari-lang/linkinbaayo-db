@@ -1,16 +1,25 @@
 """
 creator_full_refresh.py — pulls fresh subs/views/engagement/comment-rate for
 every creator already in the database (manual_refreshed.json,
-sponsored_refreshed.json, scraped_refreshed.json, trends_refreshed.json),
-via the YouTube Data API v3. Run this daily (daily_orchestrator.py already
-calls it, and it's also wired into the GitHub Actions daily workflow) so
-the quality floor and everything else in Brand Match is filtering on
-current numbers, not stale ones.
+sponsored_refreshed_seed.json, scraped_refreshed.json, trends_refreshed.json,
+pending_creators.json), via the YouTube Data API v3. Run this daily
+(daily-refresh.yml already calls it) so the quality floor and everything else
+in Brand Match is filtering on current numbers, not stale ones.
 
 WHAT IT UPDATES per creator: subs, views (avg across recent videos), eng
 (%), cmt (%), vids (channel's total video count), lastUpload (most recent
 upload date). Everything else on each record (name, url, category/niche,
 brand associations, promoEvidence, etc.) is left untouched.
+
+pending_creators.json is a special case: those records start with
+subs:0/views:0 placeholders (added via the admin panel's "Add My
+Influencers" flow, committed by the Cloudflare Worker). This script resolves
+real stats for them exactly like everything else — promote_pending_creators.js
+(run right after this script in the GitHub Actions workflow) then looks at
+which ones ended up with subs > 0 (successfully resolved) and moves those
+into MANUAL_CREATORS in index.html, leaving only genuinely-unresolvable
+handles (bad @handle, private/deleted channel, etc.) behind in the pending
+file for manual review.
 
 HOW ENGAGEMENT/COMMENT % ARE COMPUTED: over each creator's most recent
 NUM_RECENT_VIDEOS videos —
@@ -40,12 +49,11 @@ back once to an unverified SSL context.
 HOW TO RUN:
     export YOUTUBE_API_KEY_1=your_key_here
     python3 -u creator_full_refresh.py
-  (refreshes every creator across all 4 source files; can take a while —
+  (refreshes every creator across all 5 source files; can take a while —
   one channel lookup + one video-list lookup per creator, ~500 creators)
 
-Writes updates back into manual_refreshed.json, sponsored_refreshed.json,
-scraped_refreshed.json, trends_refreshed.json in place (same filenames,
-same schema) after EVERY creator, so nothing is lost if it's interrupted.
+Writes updates back into each source file in place (same filenames, same
+schema) after EVERY creator, so nothing is lost if it's interrupted.
 """
 
 import os
@@ -90,6 +98,7 @@ SOURCE_FILES = [
     "sponsored_refreshed_seed.json",
     "scraped_refreshed.json",
     "trends_refreshed.json",
+    "pending_creators.json",
 ]
 
 _UNVERIFIED_CTX = ssl._create_unverified_context()
@@ -244,6 +253,10 @@ def refresh_file(path):
             records = json.load(f)
     except FileNotFoundError:
         print(f"  ⚠ {path} not found — skipped")
+        return
+
+    if not records:
+        print("  (empty — nothing to refresh)")
         return
 
     updated = 0
