@@ -6,7 +6,7 @@
 <title>Creator Database</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/theme/mermaid.min.css">
-<script src="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/gridjs.umd.js" integrity="sha384-/XXDzxe4FsGiAe50i/u9pY/Vy/uX654MHB1xoc1BJNnH1WXHhqHga9g3q5tF4gj7" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/gridjs.umd.js" integrity="sha384-/XXDzxe4FsGiAe5<0i/u9pY/Vy/uX654MHB1xoc1BJNnH1WXHhqHga9g3q5tF4gj7" crossorigin="anonymous"></script>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -653,6 +653,12 @@
 #panel-brandmatch .dots{display:flex;gap:6px}
 #panel-brandmatch .dots i{width:7px;height:7px;border-radius:999px;background:rgba(20,17,15,.12);
   transition:all .3s ease}
+</style>
+  <style id="redesign-v3-fix">
+#panel-brandmatch .bm-hero-tag{ color:var(--ink) !important; }
+#panel-brandmatch .bm-hero-title{ font-style:normal !important; font-weight:700 !important; }
+#panel-brandmatch .bm-hero-title-l1,
+#panel-brandmatch .bm-hero-title-l2{ font-style:normal !important; }
 </style>
 </head>
 <body>
@@ -4484,16 +4490,17 @@ renderReviewGrid();
 (function(){
   function buildHero(){
     var hero = document.querySelector('#panel-brandmatch .bm-hero');
-    if(!hero || hero.dataset.redesignV3) return;
-    hero.dataset.redesignV3 = '1';
+    if(!hero) return;
 
-    var ring = document.createElement('div');
-    ring.className = 'bm-hero-deco-ring';
-    ring.innerHTML = '<div class="bm-hero-deco-halo"></div>';
-    hero.appendChild(ring);
+    if(!hero.querySelector('.bm-hero-deco-ring')){
+      var ring = document.createElement('div');
+      ring.className = 'bm-hero-deco-ring';
+      ring.innerHTML = '<div class="bm-hero-deco-halo"></div>';
+      hero.appendChild(ring);
+    }
 
     var title = hero.querySelector('.bm-hero-title');
-    if(title){
+    if(title && !title.querySelector('.bm-hero-title-l1')){
       title.innerHTML = '<span class="bm-hero-title-l1">Drop your brand.</span><br><span class="bm-hero-title-l2">Get your people.</span>';
     }
 
