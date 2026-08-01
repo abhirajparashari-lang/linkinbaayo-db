@@ -331,6 +331,203 @@
   box-shadow:4px 4px 0 var(--ink);
 }
 </style>
+  <style id="redesign-v2">
+/* ---- Shared results area ---- */
+#panel-brandmatch .bm-results-area{
+  font-family:'Manrope',sans-serif;
+}
+#panel-brandmatch .bm-profile-summary{
+  font-family:'Manrope',sans-serif;
+  font-weight:600;
+  color:var(--ink);
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:16px;
+  padding:16px 20px;
+  margin-bottom:16px;
+}
+#panel-brandmatch .bm-section-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:20px;
+  color:var(--ink);
+  margin:24px 0 12px 0;
+}
+#panel-brandmatch .bm-filter-bar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+}
+#panel-brandmatch .bm-genre-tag{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:12px;
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:6px 12px;
+}
+#panel-brandmatch .bm-filter-reset{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:12px;
+  background:var(--cream);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:6px 12px;
+  cursor:pointer;
+}
+
+/* ---- Creator Match rows (styled as cards) ---- */
+#panel-brandmatch .bm-creator-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+#panel-brandmatch .bm-row{
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:16px;
+  padding:14px 16px;
+  box-shadow:3px 3px 0 rgba(20,17,15,0.08);
+  transition:transform 0.12s ease, box-shadow 0.12s ease;
+}
+#panel-brandmatch .bm-row:hover{
+  transform:translate(-1px,-1px);
+  box-shadow:4px 4px 0 rgba(20,17,15,0.12);
+}
+#panel-brandmatch .bm-row-name{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  color:var(--ink);
+}
+#panel-brandmatch .bm-row-handle{
+  font-family:'Manrope',sans-serif;
+  color:var(--ink);
+  opacity:0.6;
+}
+#panel-brandmatch .bm-row-stat-val{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  color:var(--ink);
+}
+#panel-brandmatch .bm-row-stat-lbl{
+  font-family:'Manrope',sans-serif;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  opacity:0.55;
+}
+#panel-brandmatch .bm-row-avatar,
+#panel-brandmatch .avatar-fallback{
+  border:2px solid var(--ink);
+  border-radius:50%;
+}
+#panel-brandmatch .bm-tier-badge{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:11px;
+  background:var(--lime);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:3px 10px;
+}
+#panel-brandmatch .bm-chip{
+  font-family:'Manrope',sans-serif;
+  font-weight:600;
+  font-size:12px;
+  background:var(--cream);
+  border:1px solid var(--ink);
+  border-radius:999px;
+  padding:4px 10px;
+}
+
+/* ---- Content Radar cards ---- */
+#panel-brandmatch .bm-content-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));
+  gap:14px;
+}
+#panel-brandmatch .bm-content-card{
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:4px 4px 0 rgba(20,17,15,0.08);
+  transition:transform 0.12s ease, box-shadow 0.12s ease;
+}
+#panel-brandmatch .bm-content-card:hover{
+  transform:translate(-2px,-2px);
+  box-shadow:6px 6px 0 rgba(20,17,15,0.12);
+}
+#panel-brandmatch .bm-content-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:16px;
+  color:var(--ink);
+  margin-bottom:6px;
+}
+#panel-brandmatch .bm-content-body{
+  font-family:'Manrope',sans-serif;
+  font-size:14px;
+  color:var(--ink);
+  opacity:0.8;
+  line-height:1.5;
+}
+#panel-brandmatch .bm-content-meta{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:12px;
+  color:var(--coral);
+  margin-top:10px;
+}
+
+/* ---- Rival Radar competitor blocks ---- */
+#panel-brandmatch .bm-rival-block{
+  background:#fff;
+  border:2px solid var(--ink);
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:14px;
+  box-shadow:4px 4px 0 rgba(20,17,15,0.08);
+}
+#panel-brandmatch .bm-rival-header{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:18px;
+  color:var(--ink);
+}
+#panel-brandmatch .bm-rival-score{
+  display:inline-block;
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:12px;
+  background:var(--purple);
+  color:#fff;
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:4px 12px;
+  margin-left:8px;
+}
+#panel-brandmatch .bm-rival-live-check{
+  background:#0D0A08;
+  color:#fff;
+  border-radius:14px;
+  padding:16px;
+  margin-top:14px;
+}
+#panel-brandmatch .bm-rival-live-check,
+#panel-brandmatch .bm-rival-live-check *{
+  font-family:'Manrope',sans-serif;
+}
+#panel-brandmatch .rival-live-ads-result{
+  font-family:'Manrope',sans-serif;
+  font-size:13px;
+  color:#fff;
+  opacity:0.9;
+}
+</style>
 </head>
 <body>
 <h1 class="admin-only">Creator Database</h1>
