@@ -3861,9 +3861,9 @@ renderReviewGrid();
   }
 
 function maybeCleanAndReanalyze() {
-    var input = document.querySelector(
+    var input = [...document.querySelectorAll(
       'input[placeholder*="website URL" i], input[placeholder*="brand" i]'
-    );
+    )].find(function(el) { return el.offsetParent !== null; });
     if (!input || !input.value) return;
     var cleaned = cleanUrlForAnalysis(input.value);
     if (cleaned !== input.value.trim()) {
