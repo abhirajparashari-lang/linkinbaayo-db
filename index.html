@@ -3834,5 +3834,142 @@ document.addEventListener('DOMContentLoaded', () => {
 renderReviewGrid();
 </script>
 <a class="admin-hint" href="?admin=1">·</a>
+  <script>
+(function() {
+  // ---- Fix 1: strip tracking junk before Brand Match analyzes a URL ----
+  var TRACKING_PARAM = /^(utm_|gclid|gclsrc|gad_|gbraid|wbraid|srsltid|fbclid|msclkid|mc_|_ga|_gl|igshid|ref$|referrer|dclid|twclid|ttclid)/i;
+
+  function cleanUrlForAnalysis(raw) {
+    try {
+      var u = raw.trim();
+      if (!u) return raw;
+      var hadProtocol = /^https?:\/\//i.test(u);
+      var full = hadProtocol ? u : 'https://' + u;
+      var parsed = new URL(full);
+      var kept = new URLSearchParams();
+      parsed.searchParams.forEach(function(v, k) {
+        if (!TRACKING_PARAM.test(k)) kept.set(k, v);
+      });
+      var path = parsed.pathname.replace(/\/$/, '');
+      var out = (hadProtocol ? parsed.origin : parsed.hostname) + path;
+      var qs = kept.toString();
+      if (qs) out += '?' + qs;
+      return out;
+    } catch (e) {
+      return raw.trim();
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('button');
+    if (!btn || !/analyze/i.test(btn.textContent || '')) return;
+    var input = document.querySelector(
+      'input[placeholder*="website URL" i], input[placeholder*="brand" i]'
+    );
+    if (input && input.value) {
+      var cleaned = cleanUrlForAnalysis(input.value);
+      if (cleaned !== input.value.trim()) input.value = cleaned;
+    }
+  }, true);
+
+  // ---- Fix 2: inject the live ad-check button into Rival Radar results ----
+  function getWorkerUrl() {
+    var el = document.querySelector('#bm-rival-ads-worker-url');
+    var fromField = el && el.value ? el.value.trim() : '';
+    return fromField || (localStorage.getItem('rival_ads_worker_url') || '').trim();
+  }
+
+  function domainFromLabel(label) {
+    try {
+      var u = /^https?:\/\//i.test(label) ? label : 'https://' + label;
+      return new URL(u).hostname.replace(/^www\./, '');
+    } catch (e) {
+      return label.replace(/^https?:\/\//i, '').replace(/^www\./, '').split('/')[0];
+    }
+  }
+
+  function liveCheckBlockHTML(domain) {
+    return '<div class="bm-rival-live-check" style="border:1px solid #e5e7eb;border-radius:10px;' +
+      'padding:12px 14px;margin:12px 0 20px;background:#fff8f0;">' +
+      '<button type="button" data-live-check-domain="' + domain + '" style="background:#dc2626;' +
+      'color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;">' +
+      '🔴 Check ' + domain + '’s live video ads</button>' +
+      '<span style="font-size:12px;color:#6b7280;margin-left:10px;">Looks up Google’s Ads ' +
+      'Transparency Centre right now — takes a few seconds.</span>' +
+      '<div class="rival-live-ads-result" style="margin-top:10px;font-size:13px;"></div></div>';
+  }
+
+  async function runLiveCheck(domain, container) {
+    var workerUrl = getWorkerUrl();
+    if (!workerUrl) {
+      container.innerHTML = '<p style="color:#b91c1c;">No Rival Ads Worker URL set — paste it ' +
+        'into the admin override field above (the box under "override Gemini proxy + manual paste ' +
+        'fallback").</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color:#6b7280;">Checking…</p>';
+    try {
+      var res = await fetch(workerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: domain })
+      });
+      var data = await res.json();
+      if (data.error) {
+        container.innerHTML = '<p style="color:#b91c1c;">Error: ' + data.error + '</p>';
+        return;
+      }
+      if (!data.found || !data.found.length) {
+        container.innerHTML = '<p>' + (data.note || 'No video ads found for this domain.') + '</p>';
+        return;
+      }
+      container.innerHTML = data.found.map(function(f) {
+        if (f.error) return '<p style="color:#b91c1c;">' + f.adDetailUrl + ': ' + f.error + '</p>';
+        if (!f.youtubeUrl) {
+          return '<p>No YouTube link found for this ad. <a href="' + f.adDetailUrl +
+            '" target="_blank" rel="noopener">View ad on Ads Transparency Centre</a></p>';
+        }
+        return '<p>✅ <a href="' + f.youtubeUrl + '" target="_blank" rel="noopener">' +
+          f.youtubeUrl + '</a>' +
+          (f.advertiser ? ' — ' + f.advertiser : '') +
+          (f.lastShown ? ' (last shown ' + f.lastShown + ')' : '') + '</p>';
+      }).join('');
+    } catch (e) {
+      container.innerHTML = '<p style="color:#b91c1c;">Request failed: ' + e.message + '</p>';
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-live-check-domain]');
+    if (!btn) return;
+    var domain = btn.getAttribute('data-live-check-domain');
+    var block = btn.closest('.bm-rival-live-check');
+    var container = block ? block.querySelector('.rival-live-ads-result') : null;
+    if (container) runLiveCheck(domain, container);
+  });
+
+  function injectLiveCheckIfNeeded() {
+    var candidates = document.querySelectorAll('h1, h2, h3, h4, p, div, span, strong');
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      var text = el.textContent || '';
+      if (!/Closest tracked competitors to /i.test(text)) continue;
+      var host = el;
+      if (host.parentElement && host.parentElement.querySelector('.bm-rival-live-check')) return;
+      var match = text.match(/Closest tracked competitors to (.+)$/i);
+      if (!match) continue;
+      var domain = domainFromLabel(match[1].trim());
+      var wrap = document.createElement('div');
+      wrap.innerHTML = liveCheckBlockHTML(domain);
+      host.insertAdjacentElement('afterend', wrap.firstElementChild);
+      return;
+    }
+  }
+
+  var obs = new MutationObserver(function() { injectLiveCheckIfNeeded(); });
+  obs.observe(document.body, { childList: true, subtree: true });
+  injectLiveCheckIfNeeded();
+})();
+</script>
 </body>
 </html>
