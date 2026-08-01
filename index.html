@@ -3906,10 +3906,11 @@ renderReviewGrid();
 
   // ---- Live ad-check button injection (unchanged) ----
   function getWorkerUrl() {
-    var el = document.querySelector('#bm-rival-ads-worker-url');
-    var fromField = el && el.value ? el.value.trim() : '';
-    return fromField || (localStorage.getItem('rival_ads_worker_url') || '').trim();
-  }
+  var DEFAULT_WORKER_URL = 'https://rival-ads-worker.abhiraj-parashari.workers.dev';
+  var el = document.querySelector('#bm-rival-ads-worker-url');
+  var fromField = el && el.value ? el.value.trim() : '';
+  return fromField || (localStorage.getItem('rival_ads_worker_url') || '').trim() || DEFAULT_WORKER_URL;
+}
 
   function domainFromLabel(label) {
     try {
