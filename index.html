@@ -3860,9 +3860,9 @@ renderReviewGrid();
     }
   }
 
-  document.addEventListener('click', function(e) {
+document.addEventListener('click', function(e) {
     var btn = e.target.closest('button');
-    if (!btn || !/analyze/i.test(btn.textContent || '')) return;
+    if (!btn) return;
     var input = document.querySelector(
       'input[placeholder*="website URL" i], input[placeholder*="brand" i]'
     );
