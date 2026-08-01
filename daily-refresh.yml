@@ -1,0 +1,57 @@
+name: Daily creator data refresh
+
+# Runs every day, pulls fresh subs/views/engagement for every creator in the
+# database via the YouTube Data API, merges the results into index.html, and
+# commits the change straight to main. GitHub Pages auto-deploys on every
+# push to main, so a successful run here is the whole pipeline end to end —
+# nothing else to trigger.
+#
+# Also runnable by hand from the Actions tab (workflow_dispatch) if you ever
+# want to force a refresh without waiting for the schedule.
+
+on:
+  schedule:
+    # 03:00 UTC = 8:30 AM IST. Cron times on GitHub Actions run in UTC.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # needed so the workflow can commit index.html back to the repo
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Refresh creator stats from YouTube
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+        run: python3 -u creator_full_refresh.py
+
+      - name: Merge refreshed data into index.html
+        run: node merge_refresh_into_html.js
+
+      - name: Commit and push if index.html changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- index.html; then
+            echo "No changes to index.html — nothing to commit."
+          else
+            git add index.html manual_refreshed.json sponsored_refreshed_seed.json scraped_refreshed.json trends_refreshed.json
+            git commit -m "Daily creator data refresh ($(date -u +%Y-%m-%d))"
+            git push
+          fi
