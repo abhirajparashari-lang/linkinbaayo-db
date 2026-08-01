@@ -3832,14 +3832,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // (would throw a temporal-dead-zone error if called from up near its own
 // function definition, which runs earlier during initial script execution).
 renderReviewGrid();
-</script>
-<a class="admin-hint" href="?admin=1">·</a>
-  <script>
+<script>
 (function() {
-  // ---- Fix 1: strip tracking junk before Brand Match analyzes a URL ----
+  // ---- Shared: strip tracking junk from a URL string, cosmetic only ----
   var TRACKING_PARAM = /^(utm_|gclid|gclsrc|gad_|gbraid|wbraid|srsltid|fbclid|msclkid|mc_|_ga|_gl|igshid|ref$|referrer|dclid|twclid|ttclid)/i;
-
-  function cleanUrlForAnalysis(raw) {
+  function cleanUrlForDisplay(raw) {
     try {
       var u = raw.trim();
       if (!u) return raw;
@@ -3860,26 +3857,54 @@ renderReviewGrid();
     }
   }
 
-function maybeCleanAndReanalyze() {
-    var input = [...document.querySelectorAll(
-      'input[placeholder*="website URL" i], input[placeholder*="brand" i]'
-    )].find(function(el) { return el.offsetParent !== null; });
-    if (!input || !input.value) return;
-    var cleaned = cleanUrlForAnalysis(input.value);
-    if (cleaned !== input.value.trim()) {
-      var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-      nativeSetter.call(input, cleaned);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      setTimeout(function() {
-        var analyzeBtn = [...document.querySelectorAll('button')].find(function(b) {
-          return /^analyze$/i.test((b.textContent || '').trim());
-        });
-        if (analyzeBtn) analyzeBtn.click();
-      }, 30);
+  function nativeSetInputValue(input, value) {
+    var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeSetter.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function getVisibleUrlInput() {
+    var inputs = document.querySelectorAll('input[placeholder*="website URL" i], input[placeholder*="brand" i]');
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i].offsetParent !== null) return inputs[i];
+    }
+    return null;
+  }
+
+  function cleanupPass() {
+    var input = getVisibleUrlInput();
+    if (input && input.value) {
+      var cleaned = cleanUrlForDisplay(input.value);
+      if (cleaned !== input.value.trim()) nativeSetInputValue(input, cleaned);
+    }
+
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var node, toFix = [];
+    while ((node = walker.nextNode())) {
+      if (/'s category profile:/i.test(node.nodeValue)) toFix.push(node);
+    }
+    toFix.forEach(function(n) {
+      var stripped = n.nodeValue.replace(/^[\s\S]*?'s category profile:\s*/i, '');
+      if (stripped !== n.nodeValue) n.nodeValue = stripped;
+    });
+
+    var headings = document.querySelectorAll('h1, h2, h3, h4, p, div, span, strong');
+    for (var j = 0; j < headings.length; j++) {
+      var el = headings[j];
+      if (el.children.length) continue;
+      var text = el.textContent || '';
+      var m = text.match(/^(.*Closest tracked competitors to )(\S+)$/i);
+      if (m && /srsltid|utm_|gclid/i.test(m[2])) {
+        el.textContent = m[1] + cleanUrlForDisplay(m[2]);
+      }
     }
   }
 
-  // ---- Fix 2: inject the live ad-check button into Rival Radar results ----
+  var cleanupObs = new MutationObserver(function() { cleanupPass(); });
+  cleanupObs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  cleanupPass();
+
+  // ---- Live ad-check button injection (unchanged) ----
   function getWorkerUrl() {
     var el = document.querySelector('#bm-rival-ads-worker-url');
     var fromField = el && el.value ? el.value.trim() : '';
@@ -3973,9 +3998,28 @@ function maybeCleanAndReanalyze() {
     }
   }
 
-  var obs = new MutationObserver(function() { injectLiveCheckIfNeeded(); });
-  obs.observe(document.body, { childList: true, subtree: true });
+  var liveCheckObs = new MutationObserver(function() { injectLiveCheckIfNeeded(); });
+  liveCheckObs.observe(document.body, { childList: true, subtree: true });
   injectLiveCheckIfNeeded();
+
+  // ---- Admin-only: hide "Update Data Now" unless admin mode is active ----
+  function isAdminMode() {
+    return document.body.className.indexOf('admin') !== -1 ||
+           /[?&]admin=1(&|$)/.test(location.search);
+  }
+  function toggleUpdateDataBtn() {
+    var all = document.querySelectorAll('a, button');
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (/Update Data Now/i.test(el.textContent || '')) {
+        el.style.display = isAdminMode() ? '' : 'none';
+      }
+    }
+  }
+  var adminObs = new MutationObserver(toggleUpdateDataBtn);
+  adminObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  adminObs.observe(document.body, { childList: true, subtree: true });
+  toggleUpdateDataBtn();
 })();
 </script>
 </body>
