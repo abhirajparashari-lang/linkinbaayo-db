@@ -198,6 +198,139 @@
 
   .note { font-size: 11px; color: #888; margin-top: 10px; font-style: italic; }
 </style>
+<style id="redesign-v1">
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --ink:#14110F;
+  --cream:#FBF7F0;
+  --coral:#FF5A3C;
+  --lime:#C6F135;
+  --purple:#7C5CFF;
+  --cyan:#34C6E8;
+}
+
+/* ---- Hero ---- */
+#panel-brandmatch .bm-hero{
+  background:var(--cream);
+  border:2px solid var(--ink);
+  border-radius:24px;
+  padding:48px 32px !important;
+  margin-bottom:24px;
+  position:relative;
+  overflow:hidden;
+  box-shadow:6px 6px 0 rgba(20,17,15,0.10);
+}
+#panel-brandmatch .bm-hero-noise{
+  position:absolute; inset:0;
+  background:radial-gradient(circle at 85% 20%, rgba(255,90,60,0.14), transparent 55%),
+             radial-gradient(circle at 10% 90%, rgba(124,92,255,0.12), transparent 50%);
+  pointer-events:none;
+}
+#panel-brandmatch .bm-hero-inner{ position:relative; z-index:1; max-width:640px; }
+#panel-brandmatch .bm-hero-tag{
+  display:inline-block;
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:12px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  background:var(--lime);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:6px 14px;
+  margin-bottom:16px;
+}
+#panel-brandmatch .bm-hero-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:40px;
+  line-height:1.1;
+  color:var(--ink);
+  margin:0 0 12px 0;
+}
+#panel-brandmatch .bm-hero-sub{
+  font-family:'Manrope',sans-serif;
+  font-weight:500;
+  font-size:16px;
+  line-height:1.5;
+  color:var(--ink);
+  opacity:0.75;
+  margin:0;
+}
+
+/* ---- Sub-tab switcher (Creator Match / Content Radar / Rival Radar) ---- */
+#panel-brandmatch .bm-subtabs{
+  display:flex;
+  gap:8px;
+  margin:20px 0;
+  flex-wrap:wrap;
+}
+#panel-brandmatch .bm-subtab{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:14px;
+  background:#fff;
+  color:var(--ink);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:10px 20px;
+  cursor:pointer;
+  transition:transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow:3px 3px 0 var(--ink);
+}
+#panel-brandmatch .bm-subtab:hover{
+  transform:translate(-1px,-1px);
+  box-shadow:4px 4px 0 var(--ink);
+}
+#panel-brandmatch .bm-subtab.active{
+  background:var(--coral);
+  color:#fff;
+}
+#panel-brandmatch .bm-subtab:nth-child(2).active{ background:var(--lime); color:var(--ink); }
+#panel-brandmatch .bm-subtab:nth-child(3).active{ background:var(--purple); color:#fff; }
+
+/* ---- Search bar ---- */
+#panel-brandmatch .bm-searchbar{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:24px;
+}
+#panel-brandmatch .bm-searchbar-input{
+  font-family:'Manrope',sans-serif;
+  font-weight:500;
+  font-size:15px;
+  flex:1;
+  min-width:240px;
+  background:#fff;
+  color:var(--ink);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:14px 20px;
+}
+#panel-brandmatch .bm-searchbar-input:focus{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(255,90,60,0.25);
+}
+#panel-brandmatch .bm-searchbar-btn{
+  font-family:'Manrope',sans-serif;
+  font-weight:700;
+  font-size:15px;
+  background:var(--coral);
+  color:#fff;
+  border:2px solid var(--ink);
+  border-radius:999px;
+  padding:14px 28px;
+  cursor:pointer;
+  box-shadow:3px 3px 0 var(--ink);
+  transition:transform 0.12s ease, box-shadow 0.12s ease;
+}
+#panel-brandmatch .bm-searchbar-btn:hover{
+  transform:translate(-1px,-1px);
+  box-shadow:4px 4px 0 var(--ink);
+}
+</style>
 </head>
 <body>
 <h1 class="admin-only">Creator Database</h1>
