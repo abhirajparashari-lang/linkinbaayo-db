@@ -2711,7 +2711,7 @@ let bmRowDataByKey = {}; // repopulated on every render; rowKey -> plain creator
 // empty) to hang future per-creator annotations off of (notes, tags,
 // outreach status, etc.) without needing to restructure this markup again.
 function renderBmCreatorRow(c, rank, scoreLabel) {
-  const link = c.url || c.proofUrl || null;
+  const link = c.proofUrl || c.url || null;
   const handle = deriveHandle(c.url);
   const tier = creatorTier(c.subs);
   const genre = primaryGenre(c.category);
