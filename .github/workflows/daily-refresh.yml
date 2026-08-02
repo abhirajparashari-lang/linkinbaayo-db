@@ -49,6 +49,15 @@ jobs:
       - name: Merge refreshed data into index.html
         run: node merge_refresh_into_html.js
 
+        - name: Refresh top-performing content per creator
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+        run: python3 -u top_content_refresh.py
+
+      - name: Merge refreshed content into index.html
+        run: node merge_content_into_html.js
+
       - name: Commit and push if index.html changed
         run: |
           git config user.name "github-actions[bot]"
@@ -56,7 +65,7 @@ jobs:
           if git diff --quiet -- index.html; then
             echo "No changes to index.html — nothing to commit."
           else
-            git add index.html manual_refreshed.json sponsored_refreshed_seed.json scraped_refreshed.json trends_refreshed.json pending_creators.json
+            git add index.html manual_refreshed.json sponsored_refreshed_seed.json scraped_refreshed.json trends_refreshed.json pending_creators.json content_refreshed.json
             git commit -m "Daily creator data refresh ($(date -u +%Y-%m-%d))"
             git push
           fi
