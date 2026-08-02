@@ -4,12 +4,33 @@ videos (by view count) via the YouTube Data API v3, and writes them out as
 content_refreshed.json in the exact schema Content Radar expects (see
 CONTENT_IDEAS in index.html).
 
+This is the companion to creator_full_refresh.py — same API-key rotation,
+same channel-resolving logic, same "save after every creator" crash safety —
+but instead of averaging stats across recent uploads, it samples up to
+SAMPLE_SIZE recent uploads per creator, ranks them by view count, and keeps
+the top TOP_N as fresh Content Radar entries. Run this daily right after
+creator_full_refresh.py (daily-refresh.yml already does this) so the Content
+Radar pool keeps growing/refreshing instead of staying frozen at whatever was
+manually seeded once.
+
 VIEW FLOOR IS DYNAMIC: reads config.json (the same file the site's admin
-"Quality Floor" panel writes to) for the view-count cutoffs, instead of a
-hardcoded number. One place to change the benchmark, both the live site's
-filtering and this script pick it up automatically. If config.json doesn't
-exist yet, sensible defaults are used (5,000 views for videos published in
-the last 3 days, 10,000 views for anything older).
+"Quality Floor" panel writes to via the Cloudflare Worker) for the view-count
+cutoffs, instead of a hardcoded number. That way there's exactly one place
+to change the benchmark, and both the live site's filtering and this script
+pick it up automatically. If config.json doesn't exist yet, sensible
+defaults are used (5,000 views for videos published in the last 3 days,
+10,000 views for anything older).
+
+API KEYS: same convention as creator_full_refresh.py — read from
+YOUTUBE_API_KEY_1, YOUTUBE_API_KEY_2, ... environment variables. In GitHub
+Actions these come from repo Secrets (see .github/workflows/daily-refresh.yml).
+
+HOW TO RUN LOCALLY:
+export YOUTUBE_API_KEY_1=your_key_here
+python3 -u top_content_refresh.py
+(reads manual_refreshed.json, sponsored_refreshed_seed.json,
+scraped_refreshed.json, trends_refreshed.json — same 4 source files
+creator_full_refresh.py uses — writes content_refreshed.json)
 """
 
 import os
@@ -44,13 +65,16 @@ def _load_api_keys():
 API_KEYS = _load_api_keys()
 _key_idx = 0
 
-SAMPLE_SIZE = 50
-TOP_N = 3
-CONTENT_RECENT_DAYS = 3
+SAMPLE_SIZE = 50      # how many recent uploads to pull per creator (1 API call, flat cost regardless of count)
+TOP_N = 3              # keep this many best-performing videos per creator
+CONTENT_RECENT_DAYS = 3  # matches the front-end's "recent vs older" split in index.html
 
 CONFIG_FILE = "config.json"
 
 def load_view_floor():
+    """Reads config.json (same file the site's Quality Floor admin panel
+    writes to) so this script always uses the same benchmark as the live
+    site — update it in one place, both sides pick it up automatically."""
     defaults = {"contentRecent": 5000, "contentOlder": 10000}
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -65,6 +89,8 @@ def load_view_floor():
 VIEW_FLOOR = load_view_floor()
 
 def floor_for_video(published):
+    """Returns the applicable view-count floor for a video based on how
+    recently it was published, using the dynamic VIEW_FLOOR loaded above."""
     if not published:
         return VIEW_FLOOR["contentOlder"]
     try:
@@ -87,6 +113,7 @@ SOURCE_LABEL_BY_FILE = {
 }
 
 OUTPUT_FILE = "content_refreshed.json"
+HTML_PATH = "index.html"
 
 _UNVERIFIED_CTX = ssl._create_unverified_context()
 
@@ -182,6 +209,8 @@ def video_details(video_ids):
     return out
 
 def top_videos_for_creator(url):
+    """Returns up to TOP_N best-performing (by views) recent videos that
+    clear the dynamic view floor, or [] if unresolvable."""
     uploads_playlist = resolve_channel(url)
     if not uploads_playlist:
         return []
@@ -192,6 +221,35 @@ def top_videos_for_creator(url):
     details = [d for d in details if d["views"] >= floor_for_video(d["published"])]
     details.sort(key=lambda d: d["views"], reverse=True)
     return details[:TOP_N]
+
+def load_manual_creators_from_html(html_path=HTML_PATH):
+    """MANUAL_CREATORS lives embedded directly in index.html, not a JSON
+    file. Every admin-added creator, and every creator
+    discover_lookalike_creators.py adds, ends up here once
+    promote_pending_creators.js runs. This was a real gap: without reading
+    this block, those creators' videos never entered content_refreshed.json,
+    which meant they never fed the keyword pool discover_lookalike_creators.py
+    builds its next searches from — newly-added creators were dead ends
+    instead of new seeds for further discovery."""
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            html = f.read()
+    except FileNotFoundError:
+        return []
+    start_marker = "const MANUAL_CREATORS = ["
+    start = html.find(start_marker)
+    if start == -1:
+        return []
+    block_start = start + len(start_marker)
+    end = html.find("\n];", block_start)
+    if end == -1:
+        return []
+    block = html[block_start:end]
+    creators = []
+    for m in re.finditer(r'name\s*:\s*"((?:[^"\\]|\\.)*)".*?url\s*:\s*"((?:[^"\\]|\\.)*)"', block):
+        name, url = m.groups()
+        creators.append({"name": name, "url": url})
+    return creators
 
 def save(records, path):
     with open(path, "w", encoding="utf-8") as f:
@@ -204,16 +262,26 @@ def main():
     all_entries = []
     seen_urls = set()
 
+    # Build the list of (label, records) pairs to process — the 4 JSON
+    # files plus MANUAL_CREATORS parsed out of index.html (see fix above).
+    sources = []
     for source_file in SOURCE_FILES:
         source_label = SOURCE_LABEL_BY_FILE[source_file]
-        print(f"\n=== {source_file} (source: {source_label}) ===")
         try:
             with open(source_file, "r", encoding="utf-8") as f:
                 records = json.load(f)
+            sources.append((source_file, source_label, records))
         except FileNotFoundError:
-            print(f"  ⚠ {source_file} not found — skipped")
-            continue
+            print(f"⚠ {source_file} not found — skipped")
 
+    manual_creators = load_manual_creators_from_html()
+    if manual_creators:
+        sources.append(("MANUAL_CREATORS (index.html)", "manual_creators", manual_creators))
+    else:
+        print("⚠ No MANUAL_CREATORS found in index.html — skipped (normal if none added yet)")
+
+    for source_file, source_label, records in sources:
+        print(f"\n=== {source_file} (source: {source_label}) ===")
         for i, rec in enumerate(records, 1):
             name = rec.get("name", "?")
             url = rec.get("url")
@@ -252,7 +320,7 @@ def main():
                 })
                 added += 1
             print(f"kept {added} video(s), top view count {top[0]['views']}")
-            save(all_entries, OUTPUT_FILE)
+            save(all_entries, OUTPUT_FILE)  # save after every creator — crash-safe
             time.sleep(0.3)
 
     print(f"\nAll done. {len(all_entries)} content entries written to {OUTPUT_FILE}.")
