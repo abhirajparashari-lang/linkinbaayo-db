@@ -5186,5 +5186,99 @@ renderReviewGrid();
   init();
 })();
 </script>
+  <!--
+  Paste this right before </body> in index.html (same place the other
+  "redesign-v3-js" style additive scripts live). It doesn't touch the
+  existing Review tab's grid.js table at all — it just reads the same
+  MANUAL_CREATORS array already on the page and drops a small "Recently
+  Added" card above it, so you get a quick, regularly-checkable view of
+  what discover_lookalike_creators.py (and the admin panel) have added,
+  without having to search/scroll the full review grid.
+
+  How it works: filters MANUAL_CREATORS to entries whose notes contain
+  "Auto-discovered by lookalike engine" or "Added via admin panel", pulls
+  the date out of the notes text, sorts newest-first, and renders a
+  compact table (name linked to their channel, niche, subs, eng, source,
+  date). Re-renders itself automatically whenever the Review tab is
+  opened, so it always reflects the latest data on the page.
+-->
+<script id="recently-discovered-widget">
+(function () {
+  function parseDate(notes) {
+    var m = (notes || '').match(/\((\d{4}-\d{2}-\d{2})\)/);
+    return m ? m[1] : null;
+  }
+
+  function sourceLabel(notes) {
+    if (!notes) return 'Manual';
+    if (notes.indexOf('Auto-discovered by lookalike engine') !== -1) return '🔍 Discovered';
+    if (notes.indexOf('Added via admin panel') !== -1) return '➕ Admin-added';
+    return 'Manual';
+  }
+
+  function render() {
+    var panel = document.getElementById('panel-review');
+    if (!panel || typeof MANUAL_CREATORS === 'undefined') return;
+
+    var entries = MANUAL_CREATORS
+      .map(function (c) {
+        return {
+          name: c.name, url: c.url, niche: c.niche, subs: c.subs, eng: c.eng,
+          date: parseDate(c.notes), label: sourceLabel(c.notes),
+        };
+      })
+      .filter(function (c) { return c.date; })
+      .sort(function (a, b) { return b.date.localeCompare(a.date); });
+
+    var box = document.getElementById('recently-discovered-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'recently-discovered-box';
+      box.style.cssText = 'margin:16px 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;';
+      var statsRow = panel.querySelector('.stats-row');
+      if (statsRow) statsRow.insertAdjacentElement('afterend', box);
+      else panel.insertBefore(box, panel.firstChild);
+    }
+
+    if (!entries.length) {
+      box.innerHTML = '<div style="font-size:13px;color:#6b7280;">No auto-discovered or admin-added creators yet.</div>';
+      return;
+    }
+
+    var mostRecentDate = entries[0].date;
+    var todaysCount = entries.filter(function (e) { return e.date === mostRecentDate; }).length;
+
+    var rows = entries.slice(0, 40).map(function (e) {
+      return '<tr>' +
+        '<td style="padding:6px 8px;"><a href="' + e.url + '" target="_blank" style="color:#111827;font-weight:600;text-decoration:none;">' + e.name + '</a></td>' +
+        '<td style="padding:6px 8px;color:#6b7280;">' + (e.niche || '—') + '</td>' +
+        '<td style="padding:6px 8px;">' + (e.subs != null ? e.subs.toLocaleString() : '—') + '</td>' +
+        '<td style="padding:6px 8px;">' + (e.eng != null ? e.eng + '%' : '—') + '</td>' +
+        '<td style="padding:6px 8px;">' + e.label + '</td>' +
+        '<td style="padding:6px 8px;color:#6b7280;">' + e.date + '</td>' +
+        '</tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+      '<div style="font-weight:700;font-size:14px;">🔍 Recently Added Creators</div>' +
+      '<div style="font-size:12px;color:#6b7280;">' + entries.length + ' total tracked · most recent run: ' + mostRecentDate + ' (' + todaysCount + ' added)</div>' +
+      '</div>' +
+      '<div style="max-height:280px;overflow-y:auto;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb;color:#6b7280;">' +
+      '<th style="padding:6px 8px;">Creator</th><th style="padding:6px 8px;">Niche</th>' +
+      '<th style="padding:6px 8px;">Subs</th><th style="padding:6px 8px;">Eng</th>' +
+      '<th style="padding:6px 8px;">Source</th><th style="padding:6px 8px;">Date</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>';
+  }
+
+  // Re-render whenever the Review tab (or anything) changes, and on load —
+  // matches the same idempotent-init pattern used elsewhere on this page.
+  var mo = new MutationObserver(render);
+  mo.observe(document.body, { childList: true, subtree: true });
+  render();
+})();
+</script>
 </body>
 </html>
