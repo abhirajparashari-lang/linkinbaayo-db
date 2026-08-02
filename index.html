@@ -5038,7 +5038,7 @@ renderReviewGrid();
   toggleUpdateDataBtn();
 })();
 </script>
- <script id="redesign-v3-js">
+<script id="redesign-v3-js">
 (function(){
   function buildHero(){
     var hero = document.querySelector('#panel-brandmatch .bm-hero');
@@ -5115,8 +5115,8 @@ renderReviewGrid();
     var p = 0;
     clearInterval(analysisTimer);
     analysisTimer = setInterval(function(){
-      var step = p < 60 ? 2.2 : (p < 80 ? 0.9 : 0.25);
-      p = Math.min(90, p + step);
+      var step = p < 60 ? 3 : (p < 85 ? 1.2 : 0.4);
+      p = Math.min(95, p + step);
       if(num) num.textContent = Math.round(p);
       var i = Math.min(3, Math.floor(p/25));
       if(txt) txt.textContent = STAGES[i];
@@ -5124,7 +5124,7 @@ renderReviewGrid();
         d.style.background = j<=i ? ACCENTS[j] : 'rgba(20,17,15,.12)';
         d.style.width = j===i ? '22px' : '7px';
       });
-    }, 55);
+    }, 45);
   }
 
   function stopAnalyzingUI(){
@@ -5136,32 +5136,7 @@ renderReviewGrid();
     setTimeout(function(){
       if(box) box.classList.remove('on');
       if(ringDeco) ringDeco.classList.remove('shrink');
-    }, 180);
-  }
-
-  var watchToken = 0;
-  function waitForRealResults(){
-    var myToken = ++watchToken;
-    var resultsArea = document.querySelector('#panel-brandmatch .bm-results-area');
-    if(!resultsArea){
-      setTimeout(function(){ if(myToken === watchToken) waitForRealResults(); }, 150);
-      return;
-    }
-    var settled = false;
-    function finish(){
-      if(settled || myToken !== watchToken) return;
-      settled = true;
-      obs.disconnect();
-      clearTimeout(safety);
-      stopAnalyzingUI();
-    }
-    function check(){
-      if(resultsArea.querySelector('.bm-row, .bm-content-card, .bm-rival-block')) finish();
-    }
-    var obs = new MutationObserver(check);
-    obs.observe(resultsArea, {childList:true, subtree:true});
-    check();
-    var safety = setTimeout(finish, 20000);
+    }, 150);
   }
 
   function wrapRunBrandMatch(){
@@ -5169,8 +5144,19 @@ renderReviewGrid();
     var original = window.runBrandMatch;
     var wrapped = function(){
       startAnalyzingUI();
-      waitForRealResults();
-      return original.apply(this, arguments);
+      var result;
+      try{
+        result = original.apply(this, arguments);
+      }catch(e){
+        stopAnalyzingUI();
+        throw e;
+      }
+      if(result && typeof result.then === 'function'){
+        result.then(stopAnalyzingUI, stopAnalyzingUI);
+      } else {
+        stopAnalyzingUI();
+      }
+      return result;
     };
     wrapped.__redesignV3Wrapped = true;
     window.runBrandMatch = wrapped;
