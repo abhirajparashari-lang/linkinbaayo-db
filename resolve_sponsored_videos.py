@@ -102,12 +102,15 @@ def api_get(path, params):
 
 def worker_post(payload):
     body = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
+    }
     try:
         return _fetch(WORKER_URL, insecure=False, method="POST", body=body, headers=headers)
     except Exception:
         return _fetch(WORKER_URL, insecure=True, method="POST", body=body, headers=headers)
-
+      
 def extract_video_id(url):
     m = re.search(r"(?:v=|youtu\.be/|shorts/)([\w-]{11})", url or "")
     return m.group(1) if m else None
