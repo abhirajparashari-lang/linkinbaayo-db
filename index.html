@@ -2883,6 +2883,7 @@ function renderReviewCard(u) {
           <div style="display:flex; justify-content:space-between; align-items:start; gap:6px;">
             <div style="font-weight:600; font-size:14px; color:#111827; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(u.name)} ${u.hasProof ? '<span class="proof-icon-inline">✓proof</span>' : ''}</div>
             <span style="font-size:10px; font-weight:700; color:#fff; background:${TIER_COLORS[tier]}; padding:2px 7px; border-radius:8px; white-space:nowrap;">${tier}</span>
+            <button onclick="event.preventDefault();event.stopPropagation();window.hideCreatorFromCard('${encodeURIComponent(u.name)}','${u.source}','${encodeURIComponent(u.url||'')}')" title="Hide this creator" style="border:none;background:#fee2e2;color:#991b1b;font-weight:700;font-size:12px;line-height:1;padding:3px 7px;border-radius:8px;cursor:pointer;">✕</button>
           </div>
           <div style="font-size:11px; font-weight:600; color:${SOURCE_COLOR[u.source]}; margin-top:2px;">${SOURCE_LABEL[u.source]}</div>
         </div>
@@ -4425,7 +4426,7 @@ function buildUnifiedCreatorList() {
   for (const c of TRENDS) {
     out.push({ name: c.name, source: 'trends', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
   }
-  return out.filter(meetsQualityFloor);
+  return out.filter(c => meetsQualityFloor(c) && !window.isCreatorHidden(c.name, c.source));
 }
 
 // ── FEATURE 1: Creator Match ───────────────────────────────────────────────
@@ -5280,6 +5281,63 @@ renderReviewGrid();
 -->
 <script id="recently-discovered-widget">
 (function () {
+  var hiddenSet = new Set();
+  var hiddenList = [];
+
+  function keyFor(name, source) {
+    return (name || '').toLowerCase().trim() + '|' + source;
+  }
+
+  window.isCreatorHidden = function (name, source) {
+    return hiddenSet.has(keyFor(name, source));
+  };
+
+  function loadHiddenList() {
+    return fetch('hidden_creators.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (list) {
+        hiddenList = Array.isArray(list) ? list : [];
+        hiddenSet = new Set(hiddenList.map(function (h) { return keyFor(h.name, h.source); }));
+      })
+      .catch(function () { hiddenList = []; hiddenSet = new Set(); });
+  }
+
+  function postToWorker(payload) {
+    var proxyUrl = (typeof getProxyUrl === 'function') ? getProxyUrl() : null;
+    if (!proxyUrl) return Promise.reject(new Error('No Gemini Proxy URL configured'));
+    return fetch(proxyUrl, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok || data.error) throw new Error(data.error || 'Worker rejected the request');
+        return data;
+      });
+    });
+  }
+
+  function afterChange() {
+    return loadHiddenList().then(function () {
+      renderRecent();
+      renderHiddenList();
+      if (typeof window.renderReviewGrid === 'function') window.renderReviewGrid();
+    });
+  }
+
+  window.hideCreatorFromCard = function (encName, source, encUrl) {
+    var name = decodeURIComponent(encName);
+    var url = decodeURIComponent(encUrl) || null;
+    if (!confirm('Hide "' + name + '" from Brand Match, Content Radar, Rival Radar, and the Live Influencers list? You can restore it any time from the "Hidden Creators" box.')) return;
+    postToWorker({ action: 'hideCreator', name: name, source: source, url: url })
+      .then(afterChange)
+      .catch(function (e) { alert('Could not hide creator: ' + e.message); });
+  };
+
+  function restoreCreator(h) {
+    postToWorker({ action: 'restoreCreator', name: h.name, source: h.source })
+      .then(afterChange)
+      .catch(function (e) { alert('Could not restore creator: ' + e.message); });
+  }
+
   function parseDate(notes) {
     var m = (notes || '').match(/\((\d{4}-\d{2}-\d{2})\)/);
     return m ? m[1] : null;
@@ -5292,32 +5350,40 @@ renderReviewGrid();
     return 'Manual';
   }
 
-  function render() {
+  function getOrCreateBox(id, afterId) {
     var panel = document.getElementById('panel-review');
-    if (!panel || typeof MANUAL_CREATORS === 'undefined') return;
+    if (!panel) return null;
+    var box = document.getElementById(id);
+    if (!box) {
+      box = document.createElement('div');
+      box.id = id;
+      box.style.cssText = 'margin:16px 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;';
+      var afterEl = document.getElementById(afterId) || panel.querySelector('.stats-row');
+      if (afterEl) afterEl.insertAdjacentElement('afterend', box);
+      else panel.insertBefore(box, panel.firstChild);
+    }
+    return box;
+  }
+
+  function hideBtn(name, source, url) {
+    return '<button onclick="window.hideCreatorFromCard(\'' + encodeURIComponent(name) + '\',\'' + source + '\',\'' + encodeURIComponent(url || '') + '\')" ' +
+      'title="Hide this creator" style="border:none;background:#fee2e2;color:#991b1b;font-weight:700;font-size:12px;line-height:1;padding:3px 7px;border-radius:6px;cursor:pointer;">✕</button>';
+  }
+
+  function renderRecent() {
+    if (typeof MANUAL_CREATORS === 'undefined') return;
+    var box = getOrCreateBox('recently-discovered-box', null);
+    if (!box) return;
 
     var entries = MANUAL_CREATORS
       .map(function (c) {
-        return {
-          name: c.name, url: c.url, niche: c.niche, subs: c.subs, eng: c.eng,
-          date: parseDate(c.notes), label: sourceLabel(c.notes),
-        };
+        return { name: c.name, url: c.url, niche: c.niche, subs: c.subs, eng: c.eng, date: parseDate(c.notes), label: sourceLabel(c.notes) };
       })
-      .filter(function (c) { return c.date; })
+      .filter(function (c) { return c.date && !window.isCreatorHidden(c.name, 'manual'); })
       .sort(function (a, b) { return b.date.localeCompare(a.date); });
 
-    var box = document.getElementById('recently-discovered-box');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'recently-discovered-box';
-      box.style.cssText = 'margin:16px 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;';
-      var statsRow = panel.querySelector('.stats-row');
-      if (statsRow) statsRow.insertAdjacentElement('afterend', box);
-      else panel.insertBefore(box, panel.firstChild);
-    }
-
     if (!entries.length) {
-      box.innerHTML = '<div style="font-size:13px;color:#6b7280;">No auto-discovered or admin-added creators yet.</div>';
+      box.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:6px;">🔍 Recently Added Creators</div><div style="font-size:13px;color:#6b7280;">None yet.</div>';
       return;
     }
 
@@ -5332,6 +5398,7 @@ renderReviewGrid();
         '<td style="padding:6px 8px;">' + (e.eng != null ? e.eng + '%' : '—') + '</td>' +
         '<td style="padding:6px 8px;">' + e.label + '</td>' +
         '<td style="padding:6px 8px;color:#6b7280;">' + e.date + '</td>' +
+        '<td style="padding:6px 8px;">' + hideBtn(e.name, 'manual', e.url) + '</td>' +
         '</tr>';
     }).join('');
 
@@ -5345,8 +5412,30 @@ renderReviewGrid();
       '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb;color:#6b7280;">' +
       '<th style="padding:6px 8px;">Creator</th><th style="padding:6px 8px;">Niche</th>' +
       '<th style="padding:6px 8px;">Subs</th><th style="padding:6px 8px;">Eng</th>' +
-      '<th style="padding:6px 8px;">Source</th><th style="padding:6px 8px;">Date</th></tr></thead>' +
+      '<th style="padding:6px 8px;">Source</th><th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;"></th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function renderHiddenList() {
+    var box = getOrCreateBox('hidden-creators-box', 'recently-discovered-box');
+    if (!box) return;
+    if (!hiddenList.length) {
+      box.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:6px;">🚫 Hidden Creators</div><div style="font-size:13px;color:#6b7280;">None hidden right now.</div>';
+      return;
+    }
+    var rows = hiddenList.map(function (h) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid #f3f4f6;font-size:13px;">' +
+        '<span>' + h.name + ' <span style="color:#9ca3af;">(' + h.source + ' · hidden ' + h.hiddenDate + ')</span></span>' +
+        '<button data-restore-name="' + h.name.replace(/"/g, '&quot;') + '" data-restore-source="' + h.source + '" ' +
+        'style="background:#d1fae5;color:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">♻️ Restore</button>' +
+        '</div>';
+    }).join('');
+    box.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:8px;">🚫 Hidden Creators (' + hiddenList.length + ')</div>' + rows;
+    box.querySelectorAll('button[data-restore-name]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        restoreCreator({ name: btn.getAttribute('data-restore-name'), source: btn.getAttribute('data-restore-source') });
+      });
+    });
   }
 
   var attempts = 0;
@@ -5355,13 +5444,13 @@ renderReviewGrid();
     var panel = document.getElementById('panel-review');
     if ((panel && typeof MANUAL_CREATORS !== 'undefined') || attempts > 20) {
       clearInterval(initTimer);
-      render();
+      loadHiddenList().then(function () { renderRecent(); renderHiddenList(); });
     }
   }, 500);
 
   document.addEventListener('click', function (e) {
     var tab = e.target.closest && e.target.closest('.tab[onclick*="review"]');
-    if (tab) setTimeout(render, 50);
+    if (tab) setTimeout(function () { loadHiddenList().then(function () { renderRecent(); renderHiddenList(); }); }, 50);
   });
 })();
 </script>
