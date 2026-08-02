@@ -4908,7 +4908,7 @@ function savePendingSponsoredVideos(list) { localStorage.setItem('admin_pending_
 
 function parseVideoUrlsInput(text) {
   const tokens = text.split(/\s+/).map(t => t.trim()).filter(Boolean);
-  const urls = tokens.filter(t => /youtube\.com\/watch\?v=|youtu\.be\//i.test(t));
+  const urls = tokens.filter(t => /youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\//i.test(t));
   return [...new Set(urls)];
 }
 
