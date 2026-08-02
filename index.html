@@ -5349,11 +5349,20 @@ renderReviewGrid();
       '<tbody>' + rows + '</tbody></table></div>';
   }
 
-  // Re-render whenever the Review tab (or anything) changes, and on load —
-  // matches the same idempotent-init pattern used elsewhere on this page.
-  var mo = new MutationObserver(render);
-  mo.observe(document.body, { childList: true, subtree: true });
-  render();
+  var attempts = 0;
+  var initTimer = setInterval(function () {
+    attempts++;
+    var panel = document.getElementById('panel-review');
+    if ((panel && typeof MANUAL_CREATORS !== 'undefined') || attempts > 20) {
+      clearInterval(initTimer);
+      render();
+    }
+  }, 500);
+
+  document.addEventListener('click', function (e) {
+    var tab = e.target.closest && e.target.closest('.tab[onclick*="review"]');
+    if (tab) setTimeout(render, 50);
+  });
 })();
 </script>
 </body>
