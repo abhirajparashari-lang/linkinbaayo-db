@@ -4658,16 +4658,16 @@ function renderActiveBmTab() {
       html += `<p class="bm-empty-state">No tracked-brand competitors matched this category profile.</p>`;
     }
     for (const r of rivals) {
-      const filteredCreators = r.creators.filter(passesBmFilter);
-      html += `<div class="bm-rival-block">
-        <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
-        <div class="bm-creator-list">`;
-      filteredCreators.slice(0, 6).forEach((cr, i) => {
-        html += renderBmCreatorRow(cr, i + 1, null);
-      });
-      html += `</div></div>`;
-      if (!filteredCreators.length) html += `<p class="bm-empty-state" style="margin:-8px 0 16px;">No creators for ${r.brand} match the current filter.</p>`;
-    }
+    const filteredCreators = r.creators.filter(passesBmFilter);
+    if (!filteredCreators.length) continue;
+    html += `<div class="bm-rival-block">
+    <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
+    <div class="bm-creator-list">`;
+    filteredCreators.slice(0, 6).forEach((cr, i) => {
+    html += renderBmCreatorRow(cr, i + 1, null);
+    });
+    html += `</div></div>`;
+}
   }
 
   document.getElementById('bm-results').innerHTML = html;
