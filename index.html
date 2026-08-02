@@ -772,7 +772,7 @@
     <button onclick="exportPendingCreators()" style="background:#fff; color:#111827; border:1px solid #111827; border-radius:6px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer;">Export for refresh script ⬇</button>
   </div>
   <div id="pending-creators-list" style="margin-top:16px; display:flex; flex-direction:column; gap:6px;"></div>
-  <p class="note" style="margin-top:14px;">This queue lives only in your browser's local storage — nothing here goes live automatically. Export it, run creator_full_refresh.py against the downloaded file to pull real stats, then paste the results into MANUAL_CREATORS in index.html like you already do for every other update.</p>
+  <p class="note" style="margin-top:14px;">Handles you add here are committed straight to the repo and picked up automatically on the next daily refresh — nothing to run or paste manually. </p>
 </div>
 
 <!-- PANEL 1: Manual Creator List -->
@@ -4201,21 +4201,23 @@ function addCreatorsToPending() {
   const raw = document.getElementById('addcreators-input').value;
   const handles = parseHandlesInput(raw);
   if (!handles.length) { alert('No @handles found — paste at least one, e.g. @somecreator'); return; }
-  const pending = loadPendingCreators();
-  const pendingSet = new Set(pending.map(p => p.handle.toLowerCase()));
   const existing = existingHandlesSet();
-  let added = 0, skipped = 0;
-  for (const h of handles) {
-    const hl = h.toLowerCase();
-    if (pendingSet.has(hl) || existing.has(hl)) { skipped++; continue; }
-    pending.push({ handle: h, url: `https://youtube.com/${h}`, addedDate: new Date().toISOString().slice(0, 10) });
-    pendingSet.add(hl);
-    added++;
-  }
-  savePendingCreators(pending);
-  document.getElementById('addcreators-input').value = '';
-  renderPendingCreators();
-  alert(`Added ${added} new creator(s) to the queue.${skipped ? ` Skipped ${skipped} (already tracked or already queued).` : ''}`);
+  const toSend = handles.filter(h => !existing.has(h.toLowerCase()));
+  if (!toSend.length) { alert('All handles are already tracked — nothing to add.'); return; }
+
+  fetch(getProxyUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'addCreators', handles: toSend }),
+  })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok || data.error) throw new Error(data.error || 'Worker rejected the request');
+      document.getElementById('addcreators-input').value = '';
+      const log = document.getElementById('pending-creators-list');
+      if (log) log.innerHTML = `<span class="note" style="margin:0;">✅ Committed — ${data.added} new creator(s) queued. Real stats + promotion happen automatically on the next daily refresh.</span>`;
+    })
+    .catch(err => alert('Could not add creators: ' + err.message));
 }
 
 function removePendingCreator(handle) {
