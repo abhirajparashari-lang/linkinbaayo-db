@@ -2724,7 +2724,7 @@ function renderBmCreatorRow(c, rank, scoreLabel) {
   const nameInner = `
     <span class="bm-row-avatar">${renderAvatar(c)}</span>
     <div class="bm-row-name-block">
-      <div class="bm-row-name">${esc(c.name)} ${c.hasProof ? '<span class="proof-icon-inline">✓proof</span>' : ''}</div>
+      <div class="bm-row-name">${esc(c.name)} ${c.hasProof ? '<span class="proof-icon-inline admin-only">✓proof</span>' : ''}</div>
       <div class="bm-row-handle"><span class="bm-tier-badge" style="background:${TIER_COLORS[tier]}">${tier}</span>${handle ? esc(handle) : (c.paid || '')}${genre ? ` <span class="bm-genre-tag">· ${esc(genre)}</span>` : ''}</div>
     </div>`;
   const nameBlock = link
