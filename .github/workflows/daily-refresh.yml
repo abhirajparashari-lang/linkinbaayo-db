@@ -48,8 +48,7 @@ jobs:
 
       - name: Merge refreshed data into index.html
         run: node merge_refresh_into_html.js
-
-        - name: Refresh top-performing content per creator
+      - name: Refresh top-performing content per creator
         env:
           YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
           YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
