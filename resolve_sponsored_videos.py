@@ -109,7 +109,7 @@ def worker_post(payload):
         return _fetch(WORKER_URL, insecure=True, method="POST", body=body, headers=headers)
 
 def extract_video_id(url):
-    m = re.search(r"(?:v=|youtu\.be/)([\w-]{11})", url or "")
+    m = re.search(r"(?:v=|youtu\.be/|shorts/)([\w-]{11})", url or "")
     return m.group(1) if m else None
 
 def get_video_details(video_id):
