@@ -43,6 +43,13 @@ jobs:
           YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
         run: python3 -u creator_full_refresh.py
 
+      - name: Discover lookalike creators
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+          YOUTUBE_API_KEY_3: ${{ secrets.YOUTUBE_API_KEY_3 }}
+        run: python3 -u discover_lookalike_creators.py
+
       - name: Promote resolved pending creators into MANUAL_CREATORS
         run: node promote_pending_creators.js
 
