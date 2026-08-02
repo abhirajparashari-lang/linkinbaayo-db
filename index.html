@@ -4593,7 +4593,13 @@ function loadPreset(name) {
 
 // Switching sub-tabs re-renders from the cached brand profile — instant,
 // no re-analysis needed unless the user pastes new copy and hits Analyze.
-function switchBmTab(name) {
+var bmContentSort = 'relevance';
+function setBmContentSort(value) {
+bmContentSort = value;
+if (bmLastState) renderActiveBmTab();
+}
+function switchBmTab(name) 
+  function switchBmTab(name) {
   bmActiveTab = name;
   document.querySelectorAll('.bm-subtab').forEach(t => t.classList.toggle('active', t.dataset.bmtab === name));
   if (bmLastState) renderActiveBmTab();
@@ -4631,22 +4637,30 @@ function renderActiveBmTab() {
     if (!creators.length) html += `<p class="bm-empty-state">No creators matched this filter — try clearing a chip or the search box.</p>`;
 
   } else if (bmActiveTab === 'content') {
-    if (filterBar) filterBar.style.display = 'none';
-    if (circleBar) circleBar.style.display = 'none';
-    const content = contentRadar(weights, 15);
-    html += `<h3 class="bm-section-title">🎬 Content that's already worked, relevant to ${brandLabel} — top ${content.length}</h3>`;
-    html += `<div class="bm-content-grid">`;
-    for (const item of content) {
-      html += `<a class="bm-content-card" href="${item.url}" target="_blank">
-        <img src="${item.thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">
-        <div class="bm-content-body">
-          <div class="bm-content-title">${item.title}</div>
-          <div class="bm-content-meta">${item.name} · ${item.views.toLocaleString()} views · ${item.eng}% eng ${item.hasProof ? '· <span class="proof-icon-inline">✓proof</span>' : ''}</div>
-        </div>
-      </a>`;
-    }
-    html += `</div>`;
-    if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic content found for this category profile.</p>`;
+if (filterBar) filterBar.style.display = 'none';
+if (circleBar) circleBar.style.display = 'none';
+let content = contentRadar(weights, 15);
+if (bmContentSort === 'views') content = content.slice().sort((a, b) => b.views - a.views);
+else if (bmContentSort === 'eng') content = content.slice().sort((a, b) => b.eng - a.eng);
+html += `<div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+<select id="bm-content-sort" onchange="setBmContentSort(this.value)" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+<option value="relevance" ${bmContentSort === 'relevance' ? 'selected' : ''}>Most Relevant</option>
+<option value="views" ${bmContentSort === 'views' ? 'selected' : ''}>Views: High to Low</option>
+<option value="eng" ${bmContentSort === 'eng' ? 'selected' : ''}>Engagement: High to Low</option>
+</select>
+</div>`;
+html += `<div class="bm-content-grid">`;
+for (const item of content) {
+html += `<a class="bm-content-card" href="${item.url}" target="_blank">
+<img src="${item.thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+<div class="bm-content-body">
+<div class="bm-content-title">${item.title}</div>
+<div class="bm-content-meta">${item.name} · ${item.views.toLocaleString()} views · ${item.eng}% eng ${item.hasProof ? '· <span class="proof-icon-inline">✓proof</span>' : ''}</div>
+</div>
+</a>`;
+}
+html += `</div>`;
+if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic content found for this category profile.</p>`;
 
   } else if (bmActiveTab === 'rival') {
     if (filterBar) filterBar.style.display = 'flex';
