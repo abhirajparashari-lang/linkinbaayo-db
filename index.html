@@ -5283,6 +5283,7 @@ renderReviewGrid();
 (function () {
   var hiddenSet = new Set();
   var hiddenList = [];
+  var localOverrides = {}; // key -> { action: 'hide'|'restore', entry }
 
   function keyFor(name, source) {
     return (name || '').toLowerCase().trim() + '|' + source;
@@ -5292,14 +5293,29 @@ renderReviewGrid();
     return hiddenSet.has(keyFor(name, source));
   };
 
+  function applyOverrides(list) {
+    var byKey = {};
+    list.forEach(function (h) { byKey[keyFor(h.name, h.source)] = h; });
+    Object.keys(localOverrides).forEach(function (k) {
+      var ov = localOverrides[k];
+      if (ov.action === 'hide') byKey[k] = ov.entry;
+      else if (ov.action === 'restore') delete byKey[k];
+    });
+    return Object.keys(byKey).map(function (k) { return byKey[k]; });
+  }
+
   function loadHiddenList() {
     return fetch('hidden_creators.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (list) {
-        hiddenList = Array.isArray(list) ? list : [];
+        var raw = Array.isArray(list) ? list : [];
+        hiddenList = applyOverrides(raw);
         hiddenSet = new Set(hiddenList.map(function (h) { return keyFor(h.name, h.source); }));
       })
-      .catch(function () { hiddenList = []; hiddenSet = new Set(); });
+      .catch(function () {
+        hiddenList = applyOverrides([]);
+        hiddenSet = new Set(hiddenList.map(function (h) { return keyFor(h.name, h.source); }));
+      });
   }
 
   function postToWorker(payload) {
@@ -5315,12 +5331,10 @@ renderReviewGrid();
     });
   }
 
-  function afterChange() {
-    return loadHiddenList().then(function () {
-      renderRecent();
-      renderHiddenList();
-      if (typeof window.renderReviewGrid === 'function') window.renderReviewGrid();
-    });
+  function refreshUI() {
+    renderRecent();
+    renderHiddenList();
+    if (typeof window.renderReviewGrid === 'function') window.renderReviewGrid();
   }
 
   window.hideCreatorFromCard = function (encName, source, encUrl) {
@@ -5328,13 +5342,28 @@ renderReviewGrid();
     var url = decodeURIComponent(encUrl) || null;
     if (!confirm('Hide "' + name + '" from Brand Match, Content Radar, Rival Radar, and the Live Influencers list? You can restore it any time from the "Hidden Creators" box.')) return;
     postToWorker({ action: 'hideCreator', name: name, source: source, url: url })
-      .then(afterChange)
+      .then(function () {
+        var key = keyFor(name, source);
+        localOverrides[key] = {
+          action: 'hide',
+          entry: { name: name, source: source, url: url, hiddenDate: new Date().toISOString().slice(0, 10) },
+        };
+        hiddenList = applyOverrides(hiddenList);
+        hiddenSet = new Set(hiddenList.map(function (h) { return keyFor(h.name, h.source); }));
+        refreshUI();
+      })
       .catch(function (e) { alert('Could not hide creator: ' + e.message); });
   };
 
   function restoreCreator(h) {
     postToWorker({ action: 'restoreCreator', name: h.name, source: h.source })
-      .then(afterChange)
+      .then(function () {
+        var key = keyFor(h.name, h.source);
+        localOverrides[key] = { action: 'restore' };
+        hiddenList = applyOverrides(hiddenList);
+        hiddenSet = new Set(hiddenList.map(function (x) { return keyFor(x.name, x.source); }));
+        refreshUI();
+      })
       .catch(function (e) { alert('Could not restore creator: ' + e.message); });
   }
 
