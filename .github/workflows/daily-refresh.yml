@@ -55,6 +55,15 @@ jobs:
 
       - name: Merge refreshed data into index.html
         run: node merge_refresh_into_html.js
+      - name: Resolve queued sponsored videos (identify brand + creator stats)
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+        run: python3 -u resolve_sponsored_videos.py
+
+      - name: Merge resolved sponsored videos into index.html
+        run: node merge_sponsored_videos_into_html.js
+         
       - name: Refresh top-performing content per creator
         env:
           YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
@@ -73,6 +82,8 @@ jobs:
           else
             git add index.html manual_refreshed.json sponsored_refreshed_seed.json scraped_refreshed.json trends_refreshed.json content_refreshed.json
             [ -f pending_creators.json ] && git add pending_creators.json
+            [ -f pending_sponsored_videos.json ] && git add pending_sponsored_videos.json
+            [ -f sponsored_video_resolutions.json ] && git add sponsored_video_resolutions.json
             git commit -m "Daily creator data refresh ($(date -u +%Y-%m-%d))"
             git push
           fi
