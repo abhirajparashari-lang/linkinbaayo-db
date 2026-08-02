@@ -4551,14 +4551,22 @@ function getProxyUrl() {
   return DEFAULT_GEMINI_PROXY_URL;
 }
 
-async function analyzeViaGemini(proxyUrl, payload) {
+async function analyzeViaGemini(proxyUrl, payload, attempt = 1) {
   const res = await fetch(proxyUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error || `proxy returned ${res.status}`);
+  if (!res.ok || data.error) {
+    const msg = data.error || `proxy returned ${res.status}`;
+    const isOverloaded = /503|UNAVAILABLE|high demand|overloaded/i.test(msg);
+    if (isOverloaded && attempt < 3) {
+      await new Promise(r => setTimeout(r, attempt * 800)); // brief backoff: 800ms, then 1.6s
+      return analyzeViaGemini(proxyUrl, payload, attempt + 1);
+    }
+    throw new Error(msg);
+  }
   return normalizeWeights(data.weights || {});
 }
 
