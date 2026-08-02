@@ -705,9 +705,9 @@
 <body>
 <h1 class="admin-only">Creator Database</h1>
 <p class="subtitle admin-only">Last updated: July 2026 · Data from YouTube API + manual curation</p>
-<a class="admin-only" href="https://github.com/abhirajparashari-lang/linkinbaayo-db/actions/workflows/daily-refresh.yml" target="_blank" rel="noopener"
-   style="display:inline-block; background:#111827; color:#fff; font-weight:700; font-size:14px; padding:10px 22px; border-radius:8px; text-decoration:none; margin-bottom:16px;">
-  🔄 Update Data Now (opens GitHub Actions — click "Run workflow" there)
+<a id="gh-update-btn" href="https://github.com/abhirajparashari-lang/linkinbaayo-db/actions/workflows/daily-refresh.yml" target="_blank" rel="noopener"
+style="display:none; background:#111827; color:#fff; font-weight:700; font-size:14px; padding:10px 22px; border-radius:8px; text-decoration:none; margin-bottom:16px;">
+🔄 Update Data Now (opens GitHub Actions — click "Run workflow" there)
 </a>
 
 <div class="tabs">
@@ -4592,6 +4592,8 @@ let bmLastState = null; // { brandLabel, weights, method } — cached so tab swi
 const ADMIN_TRIGGER_PHRASE = 'darwazakholo';
 function activateAdminMode() {
   document.body.classList.add('admin-mode');
+  const ghBtn = document.getElementById('gh-update-btn');
+  if (ghBtn) ghBtn.style.display = 'inline-block';
   document.getElementById('bm-brand-name').value = '';
   const reviewTab = document.querySelector('.tab[onclick*="review"]');
   if (reviewTab) reviewTab.click();
@@ -4934,9 +4936,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const isAdmin = location.search.includes('admin=1') || location.hash.includes('admin');
   if (isAdmin) {
     document.body.classList.add('admin-mode');
+    const ghBtn = document.getElementById('gh-update-btn');
+    if (ghBtn) ghBtn.style.display = 'inline-block';
     const manualTab = document.querySelector('.tab[onclick*="brandmatch"]');
     if (manualTab) manualTab.click();
-  }
+}
 });
 
 // ── INIT CALLS THAT NEED LATE-DECLARED CONSTS ───────────────────────────────
