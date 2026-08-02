@@ -3882,7 +3882,18 @@ renderPendingCreators();
 
 // ── ADMIN: Add Sponsored Videos panel — same local-preview + Worker-commit
 // pattern as Add My Influencers, but for video URLs instead of @handles.
+let __sponsoredVideosSynced = false;
 function loadPendingSponsoredVideos() {
+  if (!__sponsoredVideosSynced) {
+    __sponsoredVideosSynced = true;
+    fetch('https://raw.githubusercontent.com/abhirajparashari-lang/linkinbaayo-db/main/pending_sponsored_videos.json?t=' + Date.now())
+      .then(r => r.json())
+      .then(function (live) {
+        localStorage.setItem('admin_pending_sponsored_videos', JSON.stringify(live));
+        if (typeof renderPendingSponsoredVideos === 'function') renderPendingSponsoredVideos();
+      })
+      .catch(function () {});
+  }
   try { return JSON.parse(localStorage.getItem('admin_pending_sponsored_videos') || '[]'); } catch (e) { return []; }
 }
 function savePendingSponsoredVideos(list) { localStorage.setItem('admin_pending_sponsored_videos', JSON.stringify(list)); }
