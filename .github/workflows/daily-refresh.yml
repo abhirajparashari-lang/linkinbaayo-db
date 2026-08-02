@@ -57,8 +57,7 @@ jobs:
         run: node merge_refresh_into_html.js
       - name: Resolve queued sponsored videos (identify brand + creator stats)
         env:
-          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
-          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_3 }}
         run: python3 -u resolve_sponsored_videos.py
 
       - name: Merge resolved sponsored videos into index.html
