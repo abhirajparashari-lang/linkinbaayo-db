@@ -3423,7 +3423,7 @@ function buildUnifiedCreatorList() {
   for (const c of TRENDS) {
     out.push({ name: c.name, source: 'trends', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
   }
-  return out.filter(c => meetsQualityFloor(c) && !window.isCreatorHidden(c.name, c.source));
+  return out.filter(c => meetsQualityFloor(c) && !(window.isCreatorHidden && window.isCreatorHidden(c.name, c.source)));
 }
 
 // ── FEATURE 1: Creator Match ───────────────────────────────────────────────
@@ -4497,7 +4497,7 @@ renderReviewGrid();
       .map(function (c) {
         return { name: c.name, url: c.url, niche: c.niche, subs: c.subs, eng: c.eng, date: parseDate(c.notes), label: sourceLabel(c.notes) };
       })
-      .filter(function (c) { return c.date && !window.isCreatorHidden(c.name, 'manual'); })
+      .filter(function (c) { return c.date && !(window.isCreatorHidden && window.isCreatorHidden(c.name, 'manual')); })
       .sort(function (a, b) { return b.date.localeCompare(a.date); });
 
     if (!entries.length) {
