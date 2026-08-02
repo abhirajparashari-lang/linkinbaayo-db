@@ -718,6 +718,7 @@ style="display:none; background:#111827; color:#fff; font-weight:700; font-size:
   <div class="tab" onclick="switchTab('review')">👥 All Live Influencers</div>
   <div class="tab" onclick="switchTab('content')">🎬 Content Ideas</div>
   <div class="tab" onclick="switchTab('addcreators')">➕ Add My Influencers</div>
+  <div class="tab" onclick="switchTab('sponsoredvideos')">📎 Add Sponsored Video</div>
   <div class="tab" onclick="switchTab('qualityfloor')">⚙️ Quality Floor</div>
   <div class="tab" onclick="switchTab('brandmatch')">🧭 Brand Match</div>
 </div>
@@ -774,6 +775,21 @@ style="display:none; background:#111827; color:#fff; font-weight:700; font-size:
   <div id="pending-creators-list" style="margin-top:16px; display:flex; flex-direction:column; gap:6px;"></div>
   <p class="note" style="margin-top:14px;">Handles you add here are committed straight to the repo and picked up automatically on the next daily refresh — nothing to run or paste manually. </p>
 </div>
+
+<!-- PANEL: Add Sponsored Videos — paste YouTube ad/sponsored video URLs, Gemini
+     figures out the brand overnight and files it as proof evidence automatically -->
+<div class="panel" id="panel-sponsoredvideos">
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val" id="s-sponsoredvideos-queued">0</div><div class="stat-label">Queued for analysis</div></div>
+  </div>
+  <p class="note" style="margin:0 0 10px;">Paste YouTube video URLs below — one per line — for sponsored/ad videos you've spotted. Overnight, each one is pulled from YouTube, Gemini reads the title/description to identify the brand, and it's filed as proof evidence for that creator automatically. If the creator isn't tracked yet, they're added as a new Sponsored Influencer.</p>
+  <textarea id="sponsoredvideos-input" rows="6" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; font-family:inherit;" placeholder="https://youtube.com/watch?v=...&#10;https://youtu.be/..."></textarea>
+  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+    <button onclick="addSponsoredVideosToPending()" style="background:#111827; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer;">Add to queue</button>
+  </div>
+  <div id="pending-sponsoredvideos-list" style="margin-top:16px; display:flex; flex-direction:column; gap:6px;"></div>
+  <p class="note" style="margin-top:14px;">Videos you add here are committed straight to the repo and resolved automatically on the next daily refresh — brand identification, creator matching, and adding new creators all happen without any manual steps.</p>
+</div>  
 
 <!-- PANEL 1: Manual Creator List -->
 <div class="panel active" id="panel-manual">
@@ -4869,19 +4885,81 @@ function renderPendingCreators() {
 }
 
 function exportPendingCreators() {
-  const pending = loadPendingCreators();
-  if (!pending.length) { alert('No creators queued yet.'); return; }
-  const records = pending.map(p => ({
-    name: p.handle.replace(/^@/, ''), url: p.url, subs: 0, niche: "", eng: 0, cmt: 0, views: 0, vids: 0,
-    notes: "Added via admin panel — needs stats from creator_full_refresh.py", lastUpload: "",
-  }));
-  const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'pending_creators_for_refresh.json';
-  a.click();
+const pending = loadPendingCreators();
+if (!pending.length) { alert('No creators queued yet.'); return; }
+const records = pending.map(p => ({
+name: p.handle.replace(/^@/, ''), url: p.url, subs: 0, niche: "", eng: 0, cmt: 0, views: 0, vids: 0,
+notes: "Added via admin panel — needs stats from creator_full_refresh.py", lastUpload: "",
+}));
+const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'pending_creators_for_refresh.json';
+a.click();
 }
 renderPendingCreators();
+
+// ── ADMIN: Add Sponsored Videos panel — same local-preview + Worker-commit
+// pattern as Add My Influencers, but for video URLs instead of @handles.
+function loadPendingSponsoredVideos() {
+  try { return JSON.parse(localStorage.getItem('admin_pending_sponsored_videos') || '[]'); } catch (e) { return []; }
+}
+function savePendingSponsoredVideos(list) { localStorage.setItem('admin_pending_sponsored_videos', JSON.stringify(list)); }
+
+function parseVideoUrlsInput(text) {
+  const tokens = text.split(/\s+/).map(t => t.trim()).filter(Boolean);
+  const urls = tokens.filter(t => /youtube\.com\/watch\?v=|youtu\.be\//i.test(t));
+  return [...new Set(urls)];
+}
+
+function addSponsoredVideosToPending() {
+  const raw = document.getElementById('sponsoredvideos-input').value;
+  const urls = parseVideoUrlsInput(raw);
+  if (!urls.length) { alert('No YouTube video URLs found — paste at least one, e.g. https://youtube.com/watch?v=...'); return; }
+  const existing = new Set(loadPendingSponsoredVideos().map(p => p.url.toLowerCase()));
+  const toSend = urls.filter(u => !existing.has(u.toLowerCase()));
+  if (!toSend.length) { alert('All these videos are already queued — nothing to add.'); return; }
+
+  fetch(getProxyUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'addSponsoredVideos', urls: toSend }),
+  })
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok || data.error) throw new Error(data.error || 'Worker rejected the request');
+      document.getElementById('sponsoredvideos-input').value = '';
+      const today = new Date().toISOString().slice(0, 10);
+      const pending = loadPendingSponsoredVideos();
+      toSend.forEach(url => pending.push({ url, addedDate: today }));
+      savePendingSponsoredVideos(pending);
+      renderPendingSponsoredVideos();
+      const log = document.getElementById('pending-sponsoredvideos-list');
+      if (log) log.insertAdjacentHTML('afterbegin', `<span class="note" style="margin:0;">✅ Committed — ${data.added} new video(s) queued. Brand identification + creator matching happen automatically on the next daily refresh.</span>`);
+    })
+    .catch(err => alert('Could not add sponsored videos: ' + err.message));
+}
+
+function removePendingSponsoredVideo(url) {
+  savePendingSponsoredVideos(loadPendingSponsoredVideos().filter(p => p.url !== url));
+  renderPendingSponsoredVideos();
+}
+
+function renderPendingSponsoredVideos() {
+  const pending = loadPendingSponsoredVideos();
+  const totalEl = document.getElementById('s-sponsoredvideos-queued');
+  if (totalEl) totalEl.textContent = pending.length;
+  const el = document.getElementById('pending-sponsoredvideos-list');
+  if (!el) return;
+  if (!pending.length) { el.innerHTML = '<span class="note" style="margin:0;">No videos queued yet.</span>'; return; }
+  el.innerHTML = pending.map(p => `
+    <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid #e5e7eb; border-radius:8px; padding:8px 12px; font-size:13px; gap:10px;">
+      <a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:#111827; font-weight:600; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:400px;">${esc(p.url)}</a>
+      <span style="color:#9ca3af; flex:1;">added ${esc(p.addedDate)}</span>
+      <button onclick="removePendingSponsoredVideo('${esc(p.url)}')" style="background:none; border:none; color:#991b1b; cursor:pointer; font-size:13px;">remove</button>
+    </div>`).join('');
+}
+renderPendingSponsoredVideos();
 
 // ── ADMIN: Quality Floor panel — preview different min-subs/min-views bars
 // live in this browser only (localStorage), then export the winning numbers
