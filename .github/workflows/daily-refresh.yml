@@ -85,5 +85,6 @@ jobs:
             [ -f pending_sponsored_videos.json ] && git add pending_sponsored_videos.json
             [ -f sponsored_video_resolutions.json ] && git add sponsored_video_resolutions.json
             git commit -m "Daily creator data refresh ($(date -u +%Y-%m-%d))"
+            git pull --rebase --autostash origin main
             git push
           fi
