@@ -4598,7 +4598,7 @@ function setBmContentSort(value) {
 bmContentSort = value;
 if (bmLastState) renderActiveBmTab();
 }
-function switchBmTab(name) 
+
   function switchBmTab(name) {
   bmActiveTab = name;
   document.querySelectorAll('.bm-subtab').forEach(t => t.classList.toggle('active', t.dataset.bmtab === name));
