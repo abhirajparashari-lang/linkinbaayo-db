@@ -4584,6 +4584,12 @@ function normalizeUrlInput(s) {
 // ── RENDERING ────────────────────────────────────────────────────────────
 let bmActiveTab = 'creator';
 let bmLastState = null; // { brandLabel, weights, method } — cached so tab switches don't need a re-analysis
+function syncBmUrl() {
+  const brand = document.getElementById('bm-brand-name').value.trim();
+  if (!brand) return;
+  const qs = `?brand=${encodeURIComponent(brand)}&tab=${bmActiveTab}`;
+  history.replaceState(null, '', location.pathname + qs);
+}
 
 // Secret admin trigger: typing this exact phrase into the brand box (any
 // tab) and hitting Analyze/Enter opens the internal admin dashboard instead
@@ -4668,7 +4674,8 @@ async function runBrandMatch() {
   }
   bmLastState = { brandLabel, weights, method };
   renderActiveBmTab();
-}
+  syncBmUrl();
+  }
 
 function loadPreset(name) {
   const weights = normalizeWeights(PRESET_BRAND_PROFILES[name]);
@@ -4689,8 +4696,19 @@ if (bmLastState) renderActiveBmTab();
   function switchBmTab(name) {
   bmActiveTab = name;
   document.querySelectorAll('.bm-subtab').forEach(t => t.classList.toggle('active', t.dataset.bmtab === name));
-  if (bmLastState) renderActiveBmTab();
+  if (bmLastState) { renderActiveBmTab(); syncBmUrl(); }
 }
+
+// Restore last-analyzed brand from the URL on load (refresh/share/bookmark safe).
+(function restoreBmFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const brand = params.get('brand');
+  if (!brand) return;
+  const tab = params.get('tab');
+  if (tab) switchBmTab(tab);
+  document.getElementById('bm-brand-name').value = brand;
+  runBrandMatch();
+})();
 
 function renderActiveBmTab() {
   const { brandLabel, weights, method } = bmLastState;
