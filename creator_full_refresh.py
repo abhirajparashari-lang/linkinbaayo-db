@@ -67,6 +67,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
+WORKER_URL = "https://tight-cherry-1103.abhiraj-parashari.workers.dev/"
+
 print = functools.partial(print, flush=True)
 
 # Read from environment — see the module docstring above for why. Picks up
@@ -139,6 +141,35 @@ def api_get(path, params):
     raise RuntimeError(f"All API keys failed. Last error: {last_err}")
 
 
+def worker_classify(text):
+    """Sends a creator's own content (channel description + recent video
+    titles) to the same Cloudflare Worker/Gemini classify endpoint Brand
+    Match already uses, so newly-added creators get a real niche
+    automatically instead of requiring someone to hand-pick one in the admin
+    panel. Returns the single highest-scoring category, or None if nothing
+    came back confident."""
+    if not text or len(text.strip()) < 20:
+        return None
+    try:
+        body = json.dumps({"text": text}).encode("utf-8")
+        req = urllib.request.Request(
+            WORKER_URL, data=body, method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        print(f"    (niche classify failed, leaving blank: {e})", end=" ")
+        return None
+    weights = data.get("weights") or {}
+    if not weights:
+        return None
+    return max(weights, key=weights.get)
+
+
 def extract_channel_ref(url):
     """Returns ('id', UC...) or ('handle', '@name') or ('user', 'name') from a channel URL."""
     if not url:
@@ -162,7 +193,7 @@ def resolve_channel(url):
         return None
     kind, value = ref
 
-    params = {"part": "contentDetails,statistics", "maxResults": 1}
+    params = {"part": "contentDetails,statistics,snippet", "maxResults": 1}
     if kind == "id":
         params["id"] = value
     elif kind == "handle":
@@ -179,7 +210,8 @@ def resolve_channel(url):
     uploads_playlist = item["contentDetails"]["relatedPlaylists"]["uploads"]
     subs = int(item["statistics"].get("subscriberCount", 0))
     video_count = int(item["statistics"].get("videoCount", 0))
-    return {"channel_id": channel_id, "uploads_playlist": uploads_playlist, "subs": subs, "vids": video_count}
+    description = item.get("snippet", {}).get("description", "")
+    return {"channel_id": channel_id, "uploads_playlist": uploads_playlist, "subs": subs, "vids": video_count, "description": description}
 
 
 def recent_video_ids(uploads_playlist, limit):
@@ -191,12 +223,13 @@ def recent_video_ids(uploads_playlist, limit):
 
 def video_stats(video_ids):
     if not video_ids:
-        return [], None
+        return [], None, []
     data = api_get("videos", {
         "part": "statistics,snippet", "id": ",".join(video_ids),
     })
     items = data.get("items", [])
     stats = []
+    titles = []
     last_upload = None
     for it in items:
         st = it.get("statistics", {})
@@ -204,23 +237,34 @@ def video_stats(video_ids):
         likes = int(st.get("likeCount", 0))
         comments = int(st.get("commentCount", 0))
         stats.append((views, likes, comments))
+        title = it.get("snippet", {}).get("title")
+        if title:
+            titles.append(title)
         published = it.get("snippet", {}).get("publishedAt")
         if published and (last_upload is None or published > last_upload):
             last_upload = published
-    return stats, (last_upload.split("T")[0] if last_upload else None)
+    return stats, (last_upload.split("T")[0] if last_upload else None), titles
 
-
-def refresh_one(url):
-    """Returns dict of updated fields, or None if the channel couldn't be resolved."""
+def refresh_one(url, need_niche=False):
+    """Returns dict of updated fields, or None if the channel couldn't be resolved.
+    need_niche is only ever True for creators that don't already have one
+    (see refresh_file) — when set, auto-classifies a niche from the
+    channel's own description + recent video titles instead of requiring a
+    manual pick in the admin panel."""
     ch = resolve_channel(url)
     if not ch:
         return None
 
     vids_ids = recent_video_ids(ch["uploads_playlist"], NUM_RECENT_VIDEOS)
-    stats, last_upload = video_stats(vids_ids)
+    stats, last_upload, titles = video_stats(vids_ids)
 
     if not stats:
-        return {"subs": ch["subs"], "vids": ch["vids"]}  # channel resolved but no recent videos found
+        out = {"subs": ch["subs"], "vids": ch["vids"]}  # channel resolved but no recent videos found
+        if need_niche:
+            niche = worker_classify(ch.get("description", ""))
+            if niche:
+                out["niche"] = niche
+        return out
 
     avg_views = sum(s[0] for s in stats) / len(stats)
     avg_likes = sum(s[1] for s in stats) / len(stats)
@@ -238,6 +282,14 @@ def refresh_one(url):
     }
     if last_upload:
         out["lastUpload"] = last_upload
+
+    if need_niche:
+        combined_text = (ch.get("description", "") + "\n" + "\n".join(titles)).strip()
+        niche = worker_classify(combined_text)
+        if niche:
+            out["niche"] = niche
+            print(f"(auto-classified niche: {niche})", end=" ")
+
     return out
 
 
@@ -269,8 +321,9 @@ def refresh_file(path):
             print("no url on file — skipped")
             skipped += 1
             continue
+        need_niche = path in ("pending_creators.json", "manual_refreshed.json") and not rec.get("niche")
         try:
-            fresh = refresh_one(url)
+            fresh = refresh_one(url, need_niche=need_niche)
         except Exception as e:
             print(f"⚠ error: {e}")
             skipped += 1
