@@ -768,6 +768,24 @@ style="display:none; background:#111827; color:#fff; font-weight:700; font-size:
   </div>
   <p class="note" style="margin:0 0 10px;">Paste @handles below — one per line, or separated by spaces/commas. Already-tracked or already-queued handles are skipped automatically.</p>
   <textarea id="addcreators-input" rows="6" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; font-family:inherit;" placeholder="@handle1&#10;@handle2&#10;@handle3"></textarea>
+  <select id="addcreators-niche" style="width:100%; padding:9px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; margin-top:10px;">
+    <option value="">Select niche/category for this batch…</option>
+    <option value="Fitness">Fitness</option>
+    <option value="Nutrition / Supplements">Nutrition / Supplements</option>
+    <option value="Skincare">Skincare</option>
+    <option value="Haircare">Haircare</option>
+    <option value="Cosmetics / Makeup">Cosmetics / Makeup</option>
+    <option value="Mens Grooming">Mens Grooming</option>
+    <option value="Wellness / Ayurveda">Wellness / Ayurveda</option>
+    <option value="Nutrition / Food">Nutrition / Food</option>
+    <option value="Fragrance">Fragrance</option>
+    <option value="Beauty & Personal Care">Beauty & Personal Care</option>
+    <option value="Fashion & Lifestyle">Fashion & Lifestyle</option>
+    <option value="Vlogging / Daily Life">Vlogging / Daily Life</option>
+    <option value="Travel">Travel</option>
+    <option value="Food & Cooking">Food & Cooking</option>
+    <option value="Personal Finance / Investing">Personal Finance / Investing</option>
+  </select>
   <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
     <button onclick="addCreatorsToPending()" style="background:#111827; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer;">Add to queue</button>
     <button onclick="exportPendingCreators()" style="background:#fff; color:#111827; border:1px solid #111827; border-radius:6px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer;">Export for refresh script ⬇</button>
@@ -4980,10 +4998,11 @@ function addCreatorsToPending() {
   const toSend = handles.filter(h => !existing.has(h.toLowerCase()));
   if (!toSend.length) { alert('All handles are already tracked — nothing to add.'); return; }
 
+  const niche = document.getElementById('addcreators-niche').value;
   fetch(getProxyUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'addCreators', handles: toSend }),
+    body: JSON.stringify({ action: 'addCreators', handles: toSend, niche: niche }),
   })
     .then(res => res.json().then(data => ({ ok: res.ok, data })))
     .then(({ ok, data }) => {
