@@ -1,3 +1,5 @@
 {
-  "disabledCategories": []
+  "disabledCategories": [
+    "__test_probe__"
+  ]
 }
