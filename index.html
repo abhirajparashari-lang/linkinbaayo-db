@@ -705,10 +705,35 @@
 <body>
 <h1 class="admin-only">Creator Database</h1>
 <p class="subtitle admin-only">Last updated: July 2026 · Data from YouTube API + manual curation</p>
-<a id="gh-update-btn" href="https://github.com/abhirajparashari-lang/linkinbaayo-db/actions/workflows/daily-refresh.yml" target="_blank" rel="noopener"
+<a id="gh-update-btn" href="https://github.com/abhirajparashari-lang/linkinbaayo-db/actions/workflows/daily-refresh.yml" target="_blank" rel="noopener" onclick="return triggerDataRefreshNow(event)"
 style="display:none; background:#111827; color:#fff; font-weight:700; font-size:14px; padding:10px 22px; border-radius:8px; text-decoration:none; margin-bottom:16px;">
-🔄 Update Data Now (opens GitHub Actions — click "Run workflow" there)
+🔄 Update Data Now
 </a>
+<script>
+function triggerDataRefreshNow(e) {
+  e.preventDefault();
+  var btn = document.getElementById('gh-update-btn');
+  var original = btn.textContent;
+  btn.textContent = '⏳ Triggering refresh...';
+  fetch(getProxyUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'triggerWorkflow' })
+  }).then(function (res) { return res.json(); }).then(function (data) {
+    if (data && data.ok) {
+      btn.textContent = '✅ Started — refreshes in ~5-10 min';
+    } else {
+      throw new Error((data && data.error) || 'Unknown error');
+    }
+  }).catch(function () {
+    btn.textContent = '⚠ Failed — opening GitHub Actions instead';
+    window.open(btn.href, '_blank');
+  }).finally(function () {
+    setTimeout(function () { btn.textContent = original; }, 6000);
+  });
+  return false;
+}
+</script>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('manual')">📋 My Influencers</div>
