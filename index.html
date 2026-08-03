@@ -744,11 +744,81 @@ function triggerDataRefreshNow(e) {
   <div class="tab" onclick="switchTab('content')">🎬 Content Ideas</div>
   <div class="tab" onclick="switchTab('addcreators')">➕ Add My Influencers</div>
   <div class="tab" onclick="switchTab('sponsoredvideos')">📎 Add Sponsored Video</div>
+  <div class="tab" onclick="switchTab('categories')">🏷️ Categories</div>
   <div class="tab" onclick="switchTab('qualityfloor')">⚙️ Quality Floor</div>
   <div class="tab" onclick="switchTab('brandmatch')">🧭 Brand Match</div>
 </div>
 
 <!-- PANEL: Quality Floor — tune the min subs/views bar live in your own browser, then bake the winning numbers into the code for everyone -->
+<div class="panel" id="panel-categories">
+  <p class="note" style="margin:0 0 10px;">Every content category currently in use, with how many live creators carry it. "Remove" hides every creator in that category everywhere (reversible via Hidden Creators) and stops it from ever being auto-assigned again to new creators or brands.</p>
+  <div id="categories-table"></div>
+</div>
+<script>
+async function loadDisabledCategories() {
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/abhirajparashari-lang/linkinbaayo-db/main/config.json?t=' + Date.now());
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.disabledCategories) ? data.disabledCategories : [];
+  } catch (e) { return []; }
+}
+
+function primaryCategory(cat) {
+  return (cat || '').split('|')[0].trim();
+}
+
+async function renderCategoriesTable() {
+  const el = document.getElementById('categories-table');
+  if (!el) return;
+  el.innerHTML = '<span class="note" style="margin:0;">Loading…</span>';
+
+  const disabled = await loadDisabledCategories();
+  const unified = buildUnifiedCreatorList();
+  const counts = {};
+  const membersByCategory = {};
+  unified.forEach(c => {
+    const cat = primaryCategory(c.category);
+    if (!cat) return;
+    counts[cat] = (counts[cat] || 0) + 1;
+    (membersByCategory[cat] = membersByCategory[cat] || []).push(c);
+  });
+
+  const rows = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  if (!rows.length) { el.innerHTML = '<span class="note" style="margin:0;">No categories found yet.</span>'; return; }
+
+  let html = '<table style="width:100%; border-collapse:collapse; font-size:14px;">';
+  html += '<tr style="text-align:left; border-bottom:2px solid #e5e7eb;"><th style="padding:8px;">Category</th><th style="padding:8px;">Creators</th><th style="padding:8px;">Status</th><th style="padding:8px;"></th></tr>';
+  rows.forEach(cat => {
+    const isDisabled = disabled.includes(cat);
+    html += `<tr style="border-bottom:1px solid #f0f0f0;">
+      <td style="padding:8px;">${esc(cat)}</td>
+      <td style="padding:8px;">${counts[cat]}</td>
+      <td style="padding:8px;">${isDisabled ? '<span style="color:#b91c1c;">Removed</span>' : '<span style="color:#059669;">Active</span>'}</td>
+      <td style="padding:8px;">${isDisabled ? '' : `<button onclick="removeCategoryPrompt('${esc(cat)}')" style="background:#fff; color:#b91c1c; border:1px solid #b91c1c; border-radius:6px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">Remove</button>`}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  el.innerHTML = html;
+  window.__categoryMembers = membersByCategory;
+}
+
+function removeCategoryPrompt(category) {
+  const members = (window.__categoryMembers || {})[category] || [];
+  if (!confirm(`Remove "${category}"? This hides ${members.length} creator(s) currently in this category from every view, and stops it from ever being assigned again. This can be partially undone later via Hidden Creators, but do this deliberately.`)) return;
+
+  const creators = members.map(c => ({ name: c.name, source: c.source, url: c.url || null }));
+  fetch(getProxyUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'bulkHideCategory', category, creators })
+  }).then(r => r.json()).then(data => {
+    if (data && data.error) throw new Error(data.error);
+    alert(`Done — ${data.hidden} creator(s) hidden, "${category}" disabled.`);
+    renderCategoriesTable();
+  }).catch(e => alert('Failed: ' + e.message));
+}
+</script>
 <div class="panel" id="panel-qualityfloor">
   <p class="note" style="margin:0 0 12px;">This bar hides creators/videos too small to look genuinely engaged (tiny sample sizes make engagement % look artificially inflated). Two separate floors: one for the creator lists (Creator Match/Rival Radar/this admin view), one for individual videos (Content Radar).</p>
 
@@ -5295,6 +5365,7 @@ function switchTab(name) {
   event.target.classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
   if (name === 'qualityfloor') populateQualityFloorInputs();
+  if (name === 'categories') renderCategoriesTable();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
