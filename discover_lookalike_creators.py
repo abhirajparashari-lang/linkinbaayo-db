@@ -60,6 +60,30 @@ from collections import Counter, defaultdict
 
 print = functools.partial(print, flush=True)
 
+WORKER_URL = "https://tight-cherry-1103.abhiraj-parashari.workers.dev/"
+
+
+def worker_classify(text):
+    """Reuses the same Brand Match / classify endpoint on the Cloudflare
+    Worker that resolve_sponsored_videos.py and creator_full_refresh.py
+    already call, so a discovered candidate's real content (description +
+    recent video titles) gets a real category instead of just inheriting
+    whichever niche's search query happened to surface it."""
+    if not text or len(text.strip()) < 20:
+        return {}
+    body = json.dumps({"text": text[:4000]}).encode("utf-8")
+    req = urllib.request.Request(
+        WORKER_URL, data=body, method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        data = json.loads(resp.read())
+    return data.get("weights") or {}
+
+
 # ── config ──────────────────────────────────────────────────────────────
 SOURCE_FILES = [
     "manual_refreshed.json",
@@ -473,17 +497,35 @@ def main():
         if not passes:
             continue
 
+        # "niche" here is just whichever niche's search query surfaced this
+        # candidate — not a real classification. Confirmed via testing: a
+        # contaminated "Wellness / Ayurveda" keyword pool (top query ended
+        # up being "nykaa review") surfaced a pure lipstick/makeup swatch
+        # channel with zero content verification. Classify off the
+        # candidate's own real content instead, falling back to the
+        # search-source niche only if classification fails or is empty.
+        classify_text = f"{sn.get('description','')}\n" + "\n".join(v["title"] for v in recent)
+        final_niche = niche
+        try:
+            weights = worker_classify(classify_text.strip())
+            if weights:
+                final_niche = max(weights, key=weights.get)
+        except Exception as e:
+            print(f"  (classify failed for {sn.get('title')}, keeping search-source niche '{niche}': {e})")
+
         new_creators.append({
             "name": sn.get("title", ""),
             "url": url,
             "subs": subs,
-            "niche": niche,
+            "niche": final_niche,
             "eng": eng_pct if eng_known else 0,
             "cmt": cmt_pct,
             "views": round(avg_views),
             "vids": int(st.get("videoCount", 0)),
             "notes": f"Auto-discovered by lookalike engine ({time.strftime('%Y-%m-%d')}) — "
-                     f"surfaced via {niche} search, meets engagement/momentum criteria.",
+                     f"surfaced via {niche} search"
+                     + (f", classified as {final_niche}" if final_niche != niche else "")
+                     + ", meets engagement/momentum criteria.",
             "lastUpload": most_recent_date,
         })
 
