@@ -735,6 +735,47 @@ function triggerDataRefreshNow(e) {
 }
 </script>
 
+<div style="margin:16px 0; padding:14px; border:1px solid #d1d5db; border-radius:8px;">
+  <strong>Add rival ad evidence</strong>
+  <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+    <input id="rival-ad-url" placeholder="Paste YouTube ad link" style="flex:1; min-width:220px; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
+    <button onclick="analyzeRivalAdClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#111827; color:#fff;">Analyze</button>
+  </div>
+  <div id="rival-ad-preview" style="margin-top:8px; display:none;">
+    <input id="rival-ad-brand" placeholder="Brand" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
+    <input id="rival-ad-category" placeholder="Category (exact match)" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; min-width:220px;">
+    <button onclick="saveRivalAdClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#16a34a; color:#fff;">Save</button>
+    <div id="rival-ad-status" style="font-size:12px; color:#6b7280; margin-top:4px;"></div>
+  </div>
+</div>
+<script>
+async function analyzeRivalAdClick() {
+  const url = document.getElementById('rival-ad-url').value.trim();
+  if (!url) return;
+  document.getElementById('rival-ad-preview').style.display = 'block';
+  const status = document.getElementById('rival-ad-status');
+  status.textContent = 'Analyzing...';
+  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'analyzeRivalAd', videoUrl: url }) });
+  const data = await res.json();
+  if (data.error) { status.textContent = 'Error: ' + data.error; return; }
+  document.getElementById('rival-ad-brand').value = data.brand || '';
+  document.getElementById('rival-ad-category').value = data.category || '';
+  status.textContent = data.brand ? `Detected from "${data.videoTitle}" — check before saving.` : `Couldn't auto-detect from "${data.videoTitle}" — type it in.`;
+}
+async function saveRivalAdClick() {
+  const url = document.getElementById('rival-ad-url').value.trim();
+  const brand = document.getElementById('rival-ad-brand').value.trim();
+  const category = document.getElementById('rival-ad-category').value.trim();
+  const status = document.getElementById('rival-ad-status');
+  if (!url || !brand) { status.textContent = 'Need a link and a brand.'; return; }
+  status.textContent = 'Saving...';
+  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'addRivalAd', videoUrl: url, brand, category }) });
+  const data = await res.json();
+  status.textContent = data.error ? 'Error: ' + data.error : (data.added ? '✅ Saved — live after next refresh.' : 'Already added.');
+  if (data.added) document.getElementById('rival-ad-url').value = '';
+}
+</script>
+
 <div class="tabs">
   <div class="tab active" onclick="switchTab('manual')">📋 My Influencers</div>
   <div class="tab" onclick="switchTab('sponsored')">🎯 Sponsored Influencers</div>
@@ -4897,8 +4938,47 @@ const BRAND_CATEGORY_MAP = {
   "noise": "Tech / Lifestyle",
   "boat": "Tech / Lifestyle",
   "fuaark": "Fitness",
-  "past modern": "Fashion"
+  "past modern": "Fashion",
+  // --- Fintech competitors (Dezerv rival set) ---
+"zerodha": "Personal Finance / Investing",
+"groww": "Personal Finance / Investing",
+"upstox": "Personal Finance / Investing",
+"angel one": "Personal Finance / Investing",
+"indmoney": "Personal Finance / Investing",
+"smallcase": "Personal Finance / Investing",
+"cred": "Personal Finance / Investing",
+"et money": "Personal Finance / Investing",
+"kuvera": "Personal Finance / Investing",
+"paytm money": "Personal Finance / Investing",
+"scripbox": "Personal Finance / Investing",
+"fisdom": "Personal Finance / Investing",
+"jupiter": "Personal Finance / Investing",
+"fi money": "Personal Finance / Investing",
+"5paisa": "Personal Finance / Investing",
+"dezerv": "Personal Finance / Investing",
+"kiwi": "Personal Finance / Investing",
+"cheq": "Personal Finance / Investing",
+
+// --- From sponsored ads you flagged (Aug 2026 batch) ---
+"hydro hype": "Nutrition / Supplements",
+"ace blend": "Nutrition / Supplements",
+"crave": "Nutrition / Supplements",
+"neuro": "Nutrition / Supplements",
+"farmley": "Nutrition / Food",
+"licious": "Nutrition / Food",
+"country delight": "Nutrition / Food",
+"plum": "Cosmetics / Makeup",
+"nat habit": "Haircare",
+"paras fortuna": "Fragrance",
+"senses": "Fragrance",
+"ray-ban meta": "Tech / Gadgets",
+"gabit": "Tech / Gadgets",
+"fittr": "Fitness",
+"powerlook": "Fashion & Lifestyle",
+"asaya": "Home / DIY / Decor",
 };
+
+const RIVAL_AD_EVIDENCE = {};  
 
 // ── BRAND MATCH ENGINE ─────────────────────────────────────────────────────
 // Client-side port of content_brand_matcher.py + competitor_finder.py.
@@ -5423,9 +5503,11 @@ if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic co
     }
     for (const r of rivals) {
     const filteredCreators = r.creators.filter(passesBmFilter);
-    if (!filteredCreators.length) continue;
+    const adEvidence = RIVAL_AD_EVIDENCE[r.brand.toLowerCase()] || [];
+    if (!filteredCreators.length && !adEvidence.length) continue;
     html += `<div class="bm-rival-block">
     <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
+    ${adEvidence.map(e => `<div class="bm-rival-ad-evidence">📢 <a href="${e.url}" target="_blank" rel="noopener">${e.title || e.url}</a></div>`).join('')}
     <div class="bm-creator-list">`;
     filteredCreators.slice(0, 6).forEach((cr, i) => {
     html += renderBmCreatorRow(cr, i + 1, null);
