@@ -740,6 +740,15 @@ function triggerDataRefreshNow(e) {
   <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
     <input id="rival-ad-url" placeholder="Paste YouTube ad link" style="flex:1; min-width:220px; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
     <button onclick="analyzeRivalAdClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#111827; color:#fff;">Analyze</button>
+  <div style="margin-top:14px; border-top:1px solid #e5e7eb; padding-top:10px;">
+    <strong>Bulk add (up to 50)</strong>
+    <div style="font-size:12px; color:#6b7280; margin-top:2px;">One per line: <code>url|Brand Name|Category</code> — brand/category optional, Gemini fills in what's missing.</div>
+    <textarea id="rival-ad-bulk" rows="6" placeholder="https://youtube.com/shorts/abc123|Dezerv|Personal Finance / Investing&#10;https://youtube.com/shorts/xyz789" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-family:monospace; font-size:12px;"></textarea>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+      <button onclick="saveRivalAdsBulkClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#111827; color:#fff;">Bulk Save</button>
+      <div id="rival-ad-bulk-status" style="font-size:12px; color:#6b7280;"></div>
+    </div>
+  </div>
   </div>
   <div id="rival-ad-preview" style="margin-top:8px; display:none;">
     <input id="rival-ad-brand" placeholder="Brand" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
@@ -762,6 +771,27 @@ async function analyzeRivalAdClick() {
   document.getElementById('rival-ad-category').value = data.category || '';
   status.textContent = data.brand ? `Detected from "${data.videoTitle}" — check before saving.` : `Couldn't auto-detect from "${data.videoTitle}" — type it in.`;
 }
+async function saveRivalAdsBulkClick() {
+  const raw = document.getElementById('rival-ad-bulk').value.trim();
+  const status = document.getElementById('rival-ad-bulk-status');
+  if (!raw) { status.textContent = 'Paste at least one line.'; return; }
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length > 50) { status.textContent = `Max 50 per batch — you pasted ${lines.length}.`; return; }
+  const entries = lines.map(line => {
+    const [url, brand, category] = line.split('|').map(p => (p || '').trim());
+    return { url, brand: brand || '', category: category || '' };
+  });
+  status.textContent = `Processing ${entries.length} link(s)...`;
+  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'addRivalAdsBulk', entries }) });
+  const data = await res.json();
+  if (data.error) { status.textContent = 'Error: ' + data.error; return; }
+  let msg = `✅ Added ${data.added}, skipped ${data.skipped} (already existed)`;
+  if (data.failed) msg += `, ${data.failed} failed — check console for which ones`;
+  status.textContent = msg;
+  if (data.failedEntries && data.failedEntries.length) console.log('Failed entries:', data.failedEntries);
+  if (data.added) document.getElementById('rival-ad-bulk').value = '';
+}
+  
 async function saveRivalAdClick() {
   const url = document.getElementById('rival-ad-url').value.trim();
   const brand = document.getElementById('rival-ad-brand').value.trim();
