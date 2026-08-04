@@ -735,77 +735,6 @@ function triggerDataRefreshNow(e) {
 }
 </script>
 
-<div class="admin-only" style="margin:16px 0; padding:14px; border:1px solid #d1d5db; border-radius:8px;">
-  <strong>Add rival ad evidence</strong>
-  <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-    <input id="rival-ad-url" placeholder="Paste YouTube ad link" style="flex:1; min-width:220px; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
-    <button onclick="analyzeRivalAdClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#111827; color:#fff;">Analyze</button>
-  <div style="margin-top:14px; border-top:1px solid #e5e7eb; padding-top:10px;">
-    <strong>Bulk add (up to 50)</strong>
-    <div style="font-size:12px; color:#6b7280; margin-top:2px;">One per line: <code>url|Brand Name|Category</code> — brand/category optional, Gemini fills in what's missing.</div>
-    <textarea id="rival-ad-bulk" rows="6" placeholder="https://youtube.com/shorts/abc123|Dezerv|Personal Finance / Investing&#10;https://youtube.com/shorts/xyz789" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-family:monospace; font-size:12px;"></textarea>
-    <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
-      <button onclick="saveRivalAdsBulkClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#111827; color:#fff;">Bulk Save</button>
-      <div id="rival-ad-bulk-status" style="font-size:12px; color:#6b7280;"></div>
-    </div>
-  </div>
-  </div>
-  <div id="rival-ad-preview" style="margin-top:8px; display:none;">
-    <input id="rival-ad-brand" placeholder="Brand" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px;">
-    <input id="rival-ad-category" placeholder="Category (exact match)" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; min-width:220px;">
-    <button onclick="saveRivalAdClick()" style="padding:6px 12px; border-radius:6px; border:none; background:#16a34a; color:#fff;">Save</button>
-    <div id="rival-ad-status" style="font-size:12px; color:#6b7280; margin-top:4px;"></div>
-  </div>
-</div>
-<script>
-async function analyzeRivalAdClick() {
-  const url = document.getElementById('rival-ad-url').value.trim();
-  if (!url) return;
-  document.getElementById('rival-ad-preview').style.display = 'block';
-  const status = document.getElementById('rival-ad-status');
-  status.textContent = 'Analyzing...';
-  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'analyzeRivalAd', videoUrl: url }) });
-  const data = await res.json();
-  if (data.error) { status.textContent = 'Error: ' + data.error; return; }
-  document.getElementById('rival-ad-brand').value = data.brand || '';
-  document.getElementById('rival-ad-category').value = data.category || '';
-  status.textContent = data.brand ? `Detected from "${data.videoTitle}" — check before saving.` : `Couldn't auto-detect from "${data.videoTitle}" — type it in.`;
-}
-async function saveRivalAdsBulkClick() {
-  const raw = document.getElementById('rival-ad-bulk').value.trim();
-  const status = document.getElementById('rival-ad-bulk-status');
-  if (!raw) { status.textContent = 'Paste at least one line.'; return; }
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length > 50) { status.textContent = `Max 50 per batch — you pasted ${lines.length}.`; return; }
-  const entries = lines.map(line => {
-    const [url, brand, category] = line.split('|').map(p => (p || '').trim());
-    return { url, brand: brand || '', category: category || '' };
-  });
-  status.textContent = `Processing ${entries.length} link(s)...`;
-  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'addRivalAdsBulk', entries }) });
-  const data = await res.json();
-  if (data.error) { status.textContent = 'Error: ' + data.error; return; }
-  let msg = `✅ Added ${data.added}, skipped ${data.skipped} (already existed)`;
-  if (data.failed) msg += `, ${data.failed} failed — check console for which ones`;
-  status.textContent = msg;
-  if (data.failedEntries && data.failedEntries.length) console.log('Failed entries:', data.failedEntries);
-  if (data.added) document.getElementById('rival-ad-bulk').value = '';
-}
-  
-async function saveRivalAdClick() {
-  const url = document.getElementById('rival-ad-url').value.trim();
-  const brand = document.getElementById('rival-ad-brand').value.trim();
-  const category = document.getElementById('rival-ad-category').value.trim();
-  const status = document.getElementById('rival-ad-status');
-  if (!url || !brand) { status.textContent = 'Need a link and a brand.'; return; }
-  status.textContent = 'Saving...';
-  const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'addRivalAd', videoUrl: url, brand, category }) });
-  const data = await res.json();
-  status.textContent = data.error ? 'Error: ' + data.error : (data.added ? '✅ Saved — live after next refresh.' : 'Already added.');
-  if (data.added) document.getElementById('rival-ad-url').value = '';
-}
-</script>
-
 <div class="tabs">
   <div class="tab active" onclick="switchTab('manual')">📋 My Influencers</div>
   <div class="tab" onclick="switchTab('sponsored')">🎯 Sponsored Influencers</div>
@@ -973,6 +902,37 @@ function removeCategoryPrompt(category) {
   </div>
   <div id="pending-sponsoredvideos-list" style="margin-top:16px; display:flex; flex-direction:column; gap:6px;"></div>
   <p class="note" style="margin-top:14px;">Videos you add here are committed straight to the repo and resolved automatically on the next daily refresh — brand identification, creator matching, and adding new creators all happen without any manual steps.</p>
+<div style="margin-top:24px; border-top:2px solid #e5e7eb; padding-top:16px;">
+    <strong>🧭 Add rival ad evidence (Rival Radar)</strong>
+    <p class="note" style="margin:6px 0 10px;">Separate from the box above — these are competitors' sponsored videos, filed as evidence in Rival Radar, not linked to your own tracked creators. Paste 1-50 links, one per line. Format: <code>url|Brand Name|Category</code> — brand and category are optional, Gemini identifies whatever you leave blank.</p>
+    <textarea id="rival-ad-bulk" rows="6" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; font-family:inherit;" placeholder="https://youtube.com/shorts/abc123|Dezerv|Personal Finance / Investing&#10;https://youtube.com/shorts/xyz789"></textarea>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <button onclick="saveRivalAdsBulkClick()" style="background:#111827; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer;">Save rival ad evidence</button>
+      <div id="rival-ad-bulk-status" style="font-size:12px; color:#6b7280;"></div>
+    </div>
+  </div>
+  <script>
+  async function saveRivalAdsBulkClick() {
+    const raw = document.getElementById('rival-ad-bulk').value.trim();
+    const status = document.getElementById('rival-ad-bulk-status');
+    if (!raw) { status.textContent = 'Paste at least one line.'; return; }
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length > 50) { status.textContent = `Max 50 per batch — you pasted ${lines.length}.`; return; }
+    const entries = lines.map(line => {
+      const [url, brand, category] = line.split('|').map(p => (p || '').trim());
+      return { url, brand: brand || '', category: category || '' };
+    });
+    status.textContent = `Processing ${entries.length} link(s)...`;
+    const res = await fetch(getProxyUrl(), { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'addRivalAdsBulk', entries }) });
+    const data = await res.json();
+    if (data.error) { status.textContent = 'Error: ' + data.error; return; }
+    let msg = `✅ Added ${data.added}, skipped ${data.skipped} (already existed)`;
+    if (data.failed) msg += `, ${data.failed} failed — check console for which ones`;
+    status.textContent = msg;
+    if (data.failedEntries && data.failedEntries.length) console.log('Failed entries:', data.failedEntries);
+    if (data.added) document.getElementById('rival-ad-bulk').value = '';
+  }
+  </script>
 </div>  
 
 <!-- PANEL 1: Manual Creator List -->
