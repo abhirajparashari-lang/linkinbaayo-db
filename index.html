@@ -6399,11 +6399,11 @@ renderReviewGrid();
       return;
     }
 
-    var mostRecentDate = entries[0].date;
+var mostRecentDate = entries[0].date;
     var todaysCount = entries.filter(function (e) { return e.date === mostRecentDate; }).length;
-
     var rows = entries.slice(0, 40).map(function (e) {
       return '<tr>' +
+        '<td style="padding:6px 8px;"><input type="checkbox" class="creator-select-cb" data-name="' + encodeURIComponent(e.name) + '" data-source="manual" data-url="' + encodeURIComponent(e.url || '') + '"></td>' +
         '<td style="padding:6px 8px;"><a href="' + e.url + '" target="_blank" style="color:#111827;font-weight:600;text-decoration:none;">' + e.name + '</a></td>' +
         '<td style="padding:6px 8px;color:#6b7280;">' + (e.niche || '—') + '</td>' +
         '<td style="padding:6px 8px;">' + (e.subs != null ? e.subs.toLocaleString() : '—') + '</td>' +
@@ -6413,19 +6413,72 @@ renderReviewGrid();
         '<td style="padding:6px 8px;">' + hideBtn(e.name, 'manual', e.url) + '</td>' +
         '</tr>';
     }).join('');
-
     box.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
       '<div style="font-weight:700;font-size:14px;">🔍 Recently Added Creators</div>' +
       '<div style="font-size:12px;color:#6b7280;">' + entries.length + ' total tracked · most recent run: ' + mostRecentDate + ' (' + todaysCount + ' added)</div>' +
       '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+      '<button id="bulk-remove-creators-btn" disabled style="padding:5px 12px;border-radius:6px;border:none;background:#991b1b;color:#fff;opacity:0.5;cursor:not-allowed;font-size:12px;">Remove selected (0)</button>' +
+      '<span id="bulk-remove-creators-status" style="font-size:12px;color:#6b7280;"></span>' +
+      '</div>' +
       '<div style="max-height:280px;overflow-y:auto;">' +
       '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb;color:#6b7280;">' +
+      '<th style="padding:6px 8px;"><input type="checkbox" id="creator-select-all-cb"></th>' +
       '<th style="padding:6px 8px;">Creator</th><th style="padding:6px 8px;">Niche</th>' +
       '<th style="padding:6px 8px;">Subs</th><th style="padding:6px 8px;">Eng</th>' +
       '<th style="padding:6px 8px;">Source</th><th style="padding:6px 8px;">Date</th><th style="padding:6px 8px;"></th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table></div>';
+
+    var selectAllCb = document.getElementById('creator-select-all-cb');
+    var bulkBtn = document.getElementById('bulk-remove-creators-btn');
+    var bulkStatus = document.getElementById('bulk-remove-creators-status');
+
+    function updateBulkBtn() {
+      var checked = box.querySelectorAll('.creator-select-cb:checked');
+      bulkBtn.textContent = 'Remove selected (' + checked.length + ')';
+      bulkBtn.disabled = checked.length === 0;
+      bulkBtn.style.opacity = checked.length === 0 ? '0.5' : '1';
+      bulkBtn.style.cursor = checked.length === 0 ? 'not-allowed' : 'pointer';
+    }
+
+    box.querySelectorAll('.creator-select-cb').forEach(function (cb) {
+      cb.addEventListener('change', updateBulkBtn);
+    });
+
+    if (selectAllCb) {
+      selectAllCb.addEventListener('change', function () {
+        box.querySelectorAll('.creator-select-cb').forEach(function (cb) { cb.checked = selectAllCb.checked; });
+        updateBulkBtn();
+      });
+    }
+
+    bulkBtn.addEventListener('click', function () {
+      var checked = Array.from(box.querySelectorAll('.creator-select-cb:checked'));
+      if (!checked.length) return;
+      var creators = checked.map(function (cb) {
+        return {
+          name: decodeURIComponent(cb.dataset.name),
+          source: cb.dataset.source,
+          url: decodeURIComponent(cb.dataset.url) || null,
+        };
+      });
+      if (!confirm('Hide ' + creators.length + ' creator(s): ' + creators.map(function (c) { return c.name; }).join(', ') + '?')) return;
+      bulkStatus.textContent = 'Removing...';
+      postToWorker({ action: 'bulkHideCreators', creators: creators })
+        .then(function (data) {
+          bulkStatus.textContent = '✅ Hidden ' + (data.hidden != null ? data.hidden : creators.length) + ' creator(s).';
+          creators.forEach(function (c) {
+            var key = keyFor(c.name, c.source);
+            localOverrides[key] = { action: 'hide', entry: { name: c.name, source: c.source, url: c.url, hiddenDate: new Date().toISOString().slice(0, 10) } };
+          });
+          hiddenList = applyOverrides(hiddenList);
+          hiddenSet = new Set(hiddenList.map(function (h) { return keyFor(h.name, h.source); }));
+          refreshUI();
+        })
+        .catch(function (e) { bulkStatus.textContent = 'Error: ' + e.message; });
+    });
   }
 
   function renderHiddenList() {
