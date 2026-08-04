@@ -83,6 +83,7 @@ jobs:
             echo "No changes — nothing to commit."
           else
             git add index.html manual_refreshed.json sponsored_refreshed_seed.json scraped_refreshed.json trends_refreshed.json content_refreshed.json
+            [ -f retag_progress.json ] && git add retag_progress.json
             [ -f pending_creators.json ] && git add pending_creators.json
             [ -f pending_sponsored_videos.json ] && git add pending_sponsored_videos.json
             [ -f sponsored_video_resolutions.json ] && git add sponsored_video_resolutions.json
