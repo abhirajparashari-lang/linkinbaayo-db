@@ -72,6 +72,9 @@ jobs:
       - name: Merge refreshed content into index.html
         run: node merge_content_into_html.js
 
+      - name: Backfill nuanced multi-tag categories (resumable)
+        run: python3 -u retag_creators.py
+
       - name: Commit and push if index.html changed
         run: |
           git config user.name "github-actions[bot]"
