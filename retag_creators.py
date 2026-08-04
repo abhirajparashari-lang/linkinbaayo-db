@@ -224,7 +224,7 @@ def main():
                         html_changed = True
                     done.add(key)
                     processed_this_run += 1
-                    time.sleep(0.2)
+                    time.sleep(4.5)
 
                 if html_changed:
                     block = "\n".join(lines)
