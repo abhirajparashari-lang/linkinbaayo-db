@@ -175,7 +175,7 @@ def main():
                 file_changed = True
             done.add(key)
             processed_this_run += 1
-            time.sleep(0.2)
+            time.sleep(4.5)
         if file_changed:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(records, f, indent=2, ensure_ascii=False)
