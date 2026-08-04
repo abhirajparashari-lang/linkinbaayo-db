@@ -4,12 +4,13 @@
     "url": "https://youtube.com/@GautamSonawaneVlogs",
     "subs": 22400,
     "niche": "Fitness | Vlogging / Daily Life",
-    "eng": 4.163,
-    "cmt": 0.396,
-    "views": 22629,
+    "eng": 4.164,
+    "cmt": 0.397,
+    "views": 22634,
     "vids": 60,
     "notes": "23yo inspiring fitness creator. Seed channel for discovery algo.",
-    "lastUpload": "2026-07-30"
+    "lastUpload": "2026-07-30",
+    "category": "Fitness"
   },
   {
     "name": "Daniel J Samuel",
@@ -33,7 +34,8 @@
     "views": 66344,
     "vids": 428,
     "notes": "Built own trainer app (vxstrainer.ai). 416 videos.",
-    "lastUpload": "2026-08-02"
+    "lastUpload": "2026-08-02",
+    "category": "Fitness"
   },
   {
     "name": "Ankita Chawla | Hustlerani",
@@ -45,7 +47,8 @@
     "views": 24908,
     "vids": 88,
     "notes": "27yo lifestyle creator. India.",
-    "lastUpload": "2026-08-02"
+    "lastUpload": "2026-08-02",
+    "category": "Motivation / Mindset | Vlogging / Daily Life"
   },
   {
     "name": "Itskivitime",
@@ -57,7 +60,8 @@
     "views": 10921,
     "vids": 262,
     "notes": "India. 252 videos.",
-    "lastUpload": "2026-08-02"
+    "lastUpload": "2026-08-02",
+    "category": "Comedy / Entertainment"
   },
   {
     "name": "Rishii Udapurkar",
@@ -88,9 +92,9 @@
     "url": "https://youtube.com/@Rohitdesaik",
     "subs": 44000,
     "niche": "Food / Lifestyle | Fitness",
-    "eng": 1.099,
+    "eng": 1.102,
     "cmt": 0.005,
-    "views": 214882,
+    "views": 219083,
     "vids": 795,
     "notes": "784 videos. Road to 100K.",
     "lastUpload": "2026-08-04"
@@ -141,7 +145,8 @@
     "views": 12465,
     "vids": 772,
     "notes": "Food reviews & recipes. India. 768 videos.",
-    "lastUpload": "2026-07-31"
+    "lastUpload": "2026-07-31",
+    "category": "Food & Cooking"
   },
   {
     "name": "U Kitchen",
