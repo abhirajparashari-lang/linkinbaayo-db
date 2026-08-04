@@ -71,7 +71,7 @@ def worker_classify(text):
     whichever niche's search query happened to surface it."""
     if not text or len(text.strip()) < 20:
         return {}
-    body = json.dumps({"text": text[:4000]}).encode("utf-8")
+    body = json.dumps({"action": "classifyCreator", "text": text[:4000]}).encode("utf-8")
     req = urllib.request.Request(
         WORKER_URL, data=body, method="POST",
         headers={
@@ -82,6 +82,21 @@ def worker_classify(text):
     with urllib.request.urlopen(req, timeout=25) as resp:
         data = json.loads(resp.read())
     return data.get("weights") or {}
+
+
+def weights_to_tag_string(weights):
+    strong = sorted(
+        [(cat, w) for cat, w in weights.items() if w >= MIN_TAG_WEIGHT],
+        key=lambda x: -x[1],
+    )[:MAX_TAGS]
+    return " | ".join(cat for cat, _ in strong)
+
+def weights_to_tag_string(weights):
+    strong = sorted(
+        [(cat, w) for cat, w in weights.items() if w >= MIN_TAG_WEIGHT],
+        key=lambda x: -x[1],
+    )[:MAX_TAGS]
+    return " | ".join(cat for cat, _ in strong)
 
 
 # ── config ──────────────────────────────────────────────────────────────
@@ -111,6 +126,9 @@ QUERY_KEYWORDS = 2                # of these are actually joined into the search
 VIDEOS_PER_NICHE_SEARCH = 25
 MAX_NEW_PER_RUN = 15
 RECENT_DAYS_WINDOW = 45
+
+MIN_TAG_WEIGHT = 4
+MAX_TAGS = 8
 
 # Channels that look like meme/reaction/compilation accounts (numbered clip
 # series, reaction pages, reposted content) clear the numeric filters fine
@@ -508,8 +526,9 @@ def main():
         final_niche = niche
         try:
             weights = worker_classify(classify_text.strip())
-            if weights:
-                final_niche = max(weights, key=weights.get)
+            tag_string = weights_to_tag_string(weights) if weights else ""
+            if tag_string:
+                final_niche = tag_string
         except Exception as e:
             print(f"  (classify failed for {sn.get('title')}, keeping search-source niche '{niche}': {e})")
 
