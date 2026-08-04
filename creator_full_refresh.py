@@ -103,6 +103,35 @@ SOURCE_FILES = [
     "pending_creators.json",
 ]
 
+WORKER_URL = "https://tight-cherry-1103.abhiraj-parashari.workers.dev/"
+MIN_TAG_WEIGHT = 4
+MAX_TAGS = 8
+
+
+def worker_classify(text):
+    if not text or len(text.strip()) < 20:
+        return {}
+    body = json.dumps({"action": "classifyCreator", "text": text[:4000]}).encode("utf-8")
+    req = urllib.request.Request(
+        WORKER_URL, data=body, method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        data = json.loads(resp.read())
+    return data.get("weights") or {}
+
+
+def weights_to_tag_string(weights):
+    strong = sorted(
+        [(cat, w) for cat, w in weights.items() if w >= MIN_TAG_WEIGHT],
+        key=lambda x: -x[1],
+    )[:MAX_TAGS]
+    return " | ".join(cat for cat, _ in strong)
+
+
 _UNVERIFIED_CTX = ssl._create_unverified_context()
 
 
@@ -139,36 +168,6 @@ def api_get(path, params):
             last_err = str(e)
             time.sleep(1)
     raise RuntimeError(f"All API keys failed. Last error: {last_err}")
-
-
-def worker_classify(text):
-    """Sends a creator's own content (channel description + recent video
-    titles) to the same Cloudflare Worker/Gemini classify endpoint Brand
-    Match already uses, so newly-added creators get a real niche
-    automatically instead of requiring someone to hand-pick one in the admin
-    panel. Returns the single highest-scoring category, or None if nothing
-    came back confident."""
-    if not text or len(text.strip()) < 20:
-        return None
-    try:
-        body = json.dumps({"text": text}).encode("utf-8")
-        req = urllib.request.Request(
-            WORKER_URL, data=body, method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            data = json.loads(resp.read())
-    except Exception as e:
-        print(f"    (niche classify failed, leaving blank: {e})", end=" ")
-        return None
-    weights = data.get("weights") or {}
-    if not weights:
-        return None
-    return max(weights, key=weights.get)
-
 
 def extract_channel_ref(url):
     """Returns ('id', UC...) or ('handle', '@name') or ('user', 'name') from a channel URL."""
@@ -261,9 +260,10 @@ def refresh_one(url, need_niche=False):
     if not stats:
         out = {"subs": ch["subs"], "vids": ch["vids"]}  # channel resolved but no recent videos found
         if need_niche:
-            niche = worker_classify(ch.get("description", ""))
-            if niche:
-                out["niche"] = niche
+            weights = worker_classify(ch.get("description", ""))
+            tag_string = weights_to_tag_string(weights) if weights else ""
+            if tag_string:
+                out["niche"] = tag_string
         return out
 
     avg_views = sum(s[0] for s in stats) / len(stats)
@@ -285,13 +285,12 @@ def refresh_one(url, need_niche=False):
 
     if need_niche:
         combined_text = (ch.get("description", "") + "\n" + "\n".join(titles)).strip()
-        niche = worker_classify(combined_text)
-        if niche:
-            out["niche"] = niche
-            print(f"(auto-classified niche: {niche})", end=" ")
-
+        weights = worker_classify(combined_text)
+        tag_string = weights_to_tag_string(weights) if weights else ""
+        if tag_string:
+            out["niche"] = tag_string
+            print(f"(auto-classified niche: {tag_string})", end=" ")
     return out
-
 
 def save(records, path):
     with open(path, "w", encoding="utf-8") as f:
