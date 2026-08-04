@@ -15,17 +15,23 @@ keyword pool happened to contain "nykaa review") or got a single manually-
 picked dropdown value. Meanwhile top_content_refresh.py is ALREADY pulling
 real, fresh video titles for every single creator every night — this script
 just puts that existing data to use: classify off real titles, keep only
-genuinely strong category matches (weight >= MIN_TAG_WEIGHT), cap at
-MAX_TAGS so it stays nuanced (a real vlogger/traveler/fitness/fashion
-creator keeps every real signal) without turning into "picks up anything."
+genuinely strong category matches (weight >= MIN_TAG_WEIGHT).
+
+BATCHED, NOT ONE-AT-A-TIME: an earlier per-creator version (one Gemini call
+per creator) blew through Gemini's rate limit almost immediately — a full
+run's worth of classify calls failed with 502s from sheer request-count
+volume. This version bundles CREATORS_PER_BATCH_CALL creators into a single
+Gemini call via the Worker's "classifyCreatorsBatch" action, cutting actual
+API request count by roughly that factor while covering the same or more
+creators per run. This is the real lever for running fast across the whole
+database without tripping the limit.
 
 RESUMABLE BY DESIGN: processes at most RETAG_BATCH_SIZE creators per run
-(tracked via retag_progress.json) so a database of hundreds of creators gets
-covered gradually over several nightly runs instead of one giant batch that
-blows through Gemini's rate limits. Safe to re-run any time — already-
-processed creators are skipped. Once retag_progress.json covers everyone,
-this becomes a no-op (new creators are handled by creator_full_refresh.py /
-discover_lookalike_creators.py directly, not this script).
+(tracked via retag_progress.json, which the workflow now commits back to the
+repo) so already-classified creators are never redone. Safe to re-run any
+time. Once retag_progress.json covers everyone, this becomes a no-op — new
+creators are handled by creator_full_refresh.py / discover_lookalike_creators.py
+directly, not this script.
 
 Run right after "Merge refreshed content into index.html" (needs fresh
 content_refreshed.json AND the current index.html) and before the final git
@@ -42,16 +48,17 @@ print = functools.partial(print, flush=True)
 
 WORKER_URL = "https://tight-cherry-1103.abhiraj-parashari.workers.dev/"
 
-RETAG_BATCH_SIZE = 80   # creators processed per run — tune based on how many
-                        # nights you're comfortable spreading the backfill over
-MIN_TAG_WEIGHT = 4      # only keep categories Gemini scores >= this out of 10 —
-                        # drops the "loose fit, weight 1-3" tags the classify
-                        # prompt allows for brands, which would otherwise make
-                        # creator tagging noisy ("picks up anything")
-MAX_TAGS = 8            # soft ceiling only, not a real design constraint —
-                        # MIN_TAG_WEIGHT is the actual filter now that the
-                        # Worker's classifyCreator prompt never forces a tag
-                        # without real, repeated evidence
+CREATORS_PER_BATCH_CALL = 10   # creators bundled into ONE Gemini call — the
+                                # real lever for speed + staying under the
+                                # rate limit at the same time
+RETAG_BATCH_SIZE = 200         # total creators processed per run — safe to
+                                # set high now that actual API call count is
+                                # roughly RETAG_BATCH_SIZE / CREATORS_PER_BATCH_CALL
+SLEEP_BETWEEN_BATCH_CALLS = 3  # seconds between each batch Gemini call
+MIN_TAG_WEIGHT = 4             # only keep categories Gemini scores >= this out
+                                # of 10 — the actual noise filter
+MAX_TAGS = 8                   # soft ceiling only, not a real constraint —
+                                # MIN_TAG_WEIGHT does the real filtering
 
 SOURCE_FILES = [
     "manual_refreshed.json",
@@ -64,28 +71,33 @@ CHECKPOINT_FILE = "retag_progress.json"
 HTML_PATH = "index.html"
 
 
-def worker_classify(text):
-    """Same Brand Match / classify endpoint on the Cloudflare Worker used
-    elsewhere in this project (resolve_sponsored_videos.py,
-    creator_full_refresh.py, discover_lookalike_creators.py)."""
-    if not text or len(text.strip()) < 20:
+def worker_classify_batch(items, retries=1, backoff=20):
+    """items: list of {"id": str, "text": str}. Returns {id: weights_dict}.
+    Retries once after a real pause on failure — a transient blip shouldn't
+    waste a whole batch of creators."""
+    if not items:
         return {}
-    body = json.dumps({"action": "classifyCreator", "text": text[:4000]}).encode("utf-8")
-    req = urllib.request.Request(
-        WORKER_URL, data=body, method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        data = json.loads(resp.read())
-    return data.get("weights") or {}
+    body = json.dumps({"action": "classifyCreatorsBatch", "items": items}).encode("utf-8")
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                WORKER_URL, data=body, method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (compatible; LinkInBaayoBot/1.0)",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read())
+            return data.get("results") or {}
+        except Exception:
+            if attempt < retries:
+                time.sleep(backoff)
+                continue
+            raise
 
 
 def weights_to_tag_string(weights):
-    """Keeps only genuinely strong matches and caps how many, so this stays
-    nuanced instead of noisy."""
     strong = sorted(
         [(cat, w) for cat, w in weights.items() if w >= MIN_TAG_WEIGHT],
         key=lambda x: -x[1],
@@ -134,6 +146,30 @@ def load_manual_creators_block(html):
     return start, block_start, end
 
 
+def run_batches(candidates, apply_fn):
+    """candidates: list of dicts with at least {"key", "id_for_batch", "text"}.
+    Chunks into CREATORS_PER_BATCH_CALL-sized groups, classifies each chunk
+    in one Gemini call, and calls apply_fn(candidate, tag_string) for every
+    candidate that got a non-empty result. Returns how many were processed
+    (attempted) this run, regardless of whether the tag actually changed."""
+    processed = 0
+    for i in range(0, len(candidates), CREATORS_PER_BATCH_CALL):
+        chunk = candidates[i:i + CREATORS_PER_BATCH_CALL]
+        items = [{"id": c["id_for_batch"], "text": c["text"]} for c in chunk]
+        try:
+            results = worker_classify_batch(items)
+        except Exception as e:
+            print(f"  ⚠ batch classify failed for {len(chunk)} creator(s): {e}")
+            results = {}
+        for c in chunk:
+            weights = results.get(c["id_for_batch"]) or {}
+            tag_string = weights_to_tag_string(weights) if weights else ""
+            apply_fn(c, tag_string)
+            processed += 1
+        time.sleep(SLEEP_BETWEEN_BATCH_CALLS)
+    return processed
+
+
 def main():
     done = load_checkpoint()
     titles_by_name = load_titles_by_name()
@@ -141,48 +177,51 @@ def main():
         print("No content_refreshed.json data yet — run top_content_refresh.py first. Skipping.")
         return
 
-    processed_this_run = 0
     changed_files = set()
+    total_processed = 0
 
     # ── 4 flat JSON source files (category field) ──────────────────────
+    file_records = {}   # path -> records (loaded once, saved once)
+    candidates = []      # list of dicts describing a classify candidate
     for path in SOURCE_FILES:
-        if processed_this_run >= RETAG_BATCH_SIZE:
-            break
         try:
             with open(path, "r", encoding="utf-8") as f:
                 records = json.load(f)
         except FileNotFoundError:
             continue
-        file_changed = False
-        for rec in records:
-            if processed_this_run >= RETAG_BATCH_SIZE:
+        file_records[path] = records
+        for idx, rec in enumerate(records):
+            if total_processed + len(candidates) >= RETAG_BATCH_SIZE:
                 break
             key = f"{path}|{(rec.get('name') or '').lower()}"
             if key in done:
                 continue
             titles = titles_by_name.get((rec.get("name") or "").lower())
             if not titles:
-                continue  # no fresh content yet for this creator — retry next run
-            try:
-                weights = worker_classify("\n".join(titles))
-            except Exception as e:
-                print(f"  ⚠ classify failed for {rec.get('name')} ({path}): {e}")
                 continue
-            tag_string = weights_to_tag_string(weights)
-            if tag_string and tag_string != rec.get("category"):
-                print(f"  {rec.get('name')} ({path}): \"{rec.get('category')}\" -> \"{tag_string}\"")
-                rec["category"] = tag_string
-                file_changed = True
-            done.add(key)
-            processed_this_run += 1
-            time.sleep(4.5)
-        if file_changed:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(records, f, indent=2, ensure_ascii=False)
-            changed_files.add(path)
+            candidates.append({
+                "key": key, "path": path, "idx": idx,
+                "id_for_batch": f"file{len(candidates)}",
+                "text": "\n".join(titles),
+                "old": rec.get("category"),
+            })
+
+    def apply_file_candidate(c, tag_string):
+        done.add(c["key"])
+        if tag_string and tag_string != c["old"]:
+            print(f"  {file_records[c['path']][c['idx']].get('name')} ({c['path']}): \"{c['old']}\" -> \"{tag_string}\"")
+            file_records[c["path"]][c["idx"]]["category"] = tag_string
+            changed_files.add(c["path"])
+
+    if candidates:
+        total_processed += run_batches(candidates, apply_file_candidate)
+        for path in set(c["path"] for c in candidates):
+            if path in changed_files:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(file_records[path], f, indent=2, ensure_ascii=False)
 
     # ── MANUAL_CREATORS embedded in index.html (niche field) ───────────
-    if processed_this_run < RETAG_BATCH_SIZE:
+    if total_processed < RETAG_BATCH_SIZE:
         try:
             with open(HTML_PATH, "r", encoding="utf-8") as f:
                 html = f.read()
@@ -194,9 +233,9 @@ def main():
             if block_start is not None:
                 block = html[block_start:end]
                 lines = block.split("\n")
-                html_changed = False
+                html_candidates = []
                 for li, line in enumerate(lines):
-                    if processed_this_run >= RETAG_BATCH_SIZE:
+                    if total_processed + len(html_candidates) >= RETAG_BATCH_SIZE:
                         break
                     m = re.search(
                         r'name\s*:\s*"((?:[^"\\]|\\.)*)".*?niche\s*:\s*"((?:[^"\\]|\\.)*)"',
@@ -211,20 +250,29 @@ def main():
                     titles = titles_by_name.get(name.lower())
                     if not titles:
                         continue
-                    try:
-                        weights = worker_classify("\n".join(titles))
-                    except Exception as e:
-                        print(f"  ⚠ classify failed for {name} (MANUAL_CREATORS): {e}")
-                        continue
-                    tag_string = weights_to_tag_string(weights)
-                    if tag_string and tag_string != niche:
-                        print(f"  {name} (MANUAL_CREATORS): \"{niche}\" -> \"{tag_string}\"")
-                        lines[li] = line.replace(f'niche:"{niche}"', f'niche:"{tag_string}"') \
-                                         .replace(f'niche: "{niche}"', f'niche: "{tag_string}"')
+                    html_candidates.append({
+                        "key": key, "line_idx": li, "name": name, "old_niche": niche,
+                        "id_for_batch": f"html{len(html_candidates)}",
+                        "text": "\n".join(titles),
+                    })
+
+                html_changed = False
+
+                def apply_html_candidate(c, tag_string):
+                    nonlocal html_changed
+                    done.add(c["key"])
+                    if tag_string and tag_string != c["old_niche"]:
+                        print(f"  {c['name']} (MANUAL_CREATORS): \"{c['old_niche']}\" -> \"{tag_string}\"")
+                        line = lines[c["line_idx"]]
+                        lines[c["line_idx"]] = line.replace(
+                            f'niche:"{c["old_niche"]}"', f'niche:"{tag_string}"'
+                        ).replace(
+                            f'niche: "{c["old_niche"]}"', f'niche: "{tag_string}"'
+                        )
                         html_changed = True
-                    done.add(key)
-                    processed_this_run += 1
-                    time.sleep(4.5)
+
+                if html_candidates:
+                    total_processed += run_batches(html_candidates, apply_html_candidate)
 
                 if html_changed:
                     block = "\n".join(lines)
@@ -234,7 +282,7 @@ def main():
                     changed_files.add(HTML_PATH)
 
     save_checkpoint(done)
-    print(f"\nProcessed {processed_this_run} creator(s) this run "
+    print(f"\nProcessed {total_processed} creator(s) this run "
           f"({len(done)} total done across all runs so far).")
     if changed_files:
         print(f"Changed: {', '.join(sorted(changed_files))}")
