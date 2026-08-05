@@ -5733,6 +5733,11 @@ for (const c of unified) {
   return results.slice(0, limit || 20);
 }
 
+  function ytThumbFromUrl(url) {
+  const m = (url || '').match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg` : null;
+}
+
 // ── FEATURE 3: Rival Radar ───────────────────────────────────────────────
 function rivalRadar(brandWeights, inputNameHint, topN) {
   const inputNorm = normBrandName(inputNameHint || "");
@@ -6037,7 +6042,15 @@ if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic co
     if (!filteredCreators.length && !adEvidence.length) continue;
     html += `<div class="bm-rival-block">
     <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
-    ${adEvidence.map(e => `<div class="bm-rival-ad-evidence">📢 <a href="${e.url}" target="_blank" rel="noopener">${e.title || e.url}</a></div>`).join('')}
+    <div class="bm-content-grid">
+${adEvidence.map(e => {
+  const thumb = ytThumbFromUrl(e.url);
+  return `<a class="bm-content-card" href="${e.url}" target="_blank" rel="noopener">
+    ${thumb ? `<img src="${thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
+    <div class="bm-content-body"><div class="bm-content-title">📢 ${e.title || e.url}</div></div>
+  </a>`;
+}).join('')}
+</div>
     <div class="bm-creator-list">`;
     filteredCreators.slice(0, 6).forEach((cr, i) => {
     html += renderBmCreatorRow(cr, i + 1, null);
