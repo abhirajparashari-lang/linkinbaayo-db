@@ -5575,6 +5575,37 @@ function balancedOverlap(weightsA, weightsB) {
   return Math.round(score * 10000) / 10000;
 }
 
+const CATEGORY_ALIASES = {
+  "tech / lifestyle": "Tech / Gadgets",
+  "skincare / cosmetics": "Cosmetics / Makeup",
+  "food / lifestyle": "Food & Cooking",
+  "fitness / wellness": "Fitness",
+  "food / health": "Nutrition / Food",
+  "career / lifestyle": "Business / Entrepreneurship",
+  "cosmetics": "Cosmetics / Makeup",
+  "creatine": "Nutrition / Supplements",
+  "cycling / endurance": "Fitness",
+  "fashion": "Fashion & Lifestyle",
+  "female hair": "Haircare",
+  "food": "Food & Cooking",
+  "food / home": "Food & Cooking",
+  "food / vlog": "Food & Cooking",
+  "health / wellness": "Wellness / Ayurveda",
+  "lifestyle": "Vlogging / Daily Life",
+  "lifestyle / fashion": "Fashion & Lifestyle",
+  "lifestyle / vlog": "Vlogging / Daily Life",
+  "male beard": "Mens Grooming",
+  "mens skincare": "Mens Grooming",
+  "nutrition": "Nutrition / Food",
+  "protein": "Nutrition / Supplements",
+  "running": "Fitness",
+  "running / endurance": "Fitness",
+  "skincare / haircare": "Skincare",
+  "supplements": "Nutrition / Supplements",
+  "travel / lifestyle": "Travel",
+  "wellness / health": "Wellness / Ayurveda",
+};
+  
 function scoreCreatorCategory(categoryStr, brandWeights) {
   if (!categoryStr || categoryStr === "—") return { score: 0, matched: [] };
   const tags = categoryStr.split("|").map(t => t.trim());
@@ -5584,7 +5615,8 @@ function scoreCreatorCategory(categoryStr, brandWeights) {
     for (const [brandCat, w] of Object.entries(brandWeights)) {
       const same = tag.toLowerCase() === brandCat.toLowerCase()
                 || tag.toLowerCase().includes(brandCat.toLowerCase())
-                || brandCat.toLowerCase().includes(tag.toLowerCase());
+                || brandCat.toLowerCase().includes(tag.toLowerCase())
+                || CATEGORY_ALIASES[tag.toLowerCase()] === brandCat;
       if (same && !matchedCats.includes(brandCat)) {
         matchedCats.push(brandCat);
         matchedWeights.push(w * (ti === 0 ? 1 : 0.5));
@@ -6049,7 +6081,7 @@ if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic co
     const adEvidence = RIVAL_AD_EVIDENCE[r.brand.toLowerCase()] || [];
     if (!filteredCreators.length && !adEvidence.length) continue;
     html += `<div class="bm-rival-block">
-    <div class="bm-rival-header"><a href="https://${brandDomain(r.brand)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:inherit; vertical-align:middle;"><img src="${brandLogoUrl(r.brand)}" style="width:20px; height:20px; border-radius:4px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" referrerpolicy="no-referrer"><span style="display:none;">${r.brand}</span></a> <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
+    <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
     <div class="bm-content-grid">
 ${adEvidence.map(e => {
   const thumb = ytThumbFromUrl(e.url);
