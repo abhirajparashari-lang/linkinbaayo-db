@@ -6035,7 +6035,7 @@ function renderActiveBmTab() {
     html += `<h3 class="bm-section-title">🎯 Best-fit creators for ${brandLabel} — showing ${creators.length} of ${rawCreators.length} matched</h3>`;
     html += `<div class="bm-creator-list">`;
     creators.forEach((c, i) => {
-      html += renderBmCreatorRow(c, i + 1, `${(c.combined * 100).toFixed(0)}%`);
+      html += renderBmCreatorRow(c, i + 1, `${Math.min(100, c.combined * 100).toFixed(0)}%`);
     });
     html += `</div>`;
     if (!creators.length) html += `<p class="bm-empty-state">No creators matched this filter — try clearing a chip or the search box.</p>`;
