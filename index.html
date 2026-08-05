@@ -5716,7 +5716,10 @@ function meetsContentQualityFloor(item) {
 function contentRadar(brandWeights, limit) {
   const unified = buildUnifiedCreatorList();
   const creatorIndex = {};
-  for (const c of unified) creatorIndex[c.name.toLowerCase().trim() + '|' + c.source] = c;
+for (const c of unified) {
+  creatorIndex[c.name.toLowerCase().trim() + '|' + c.source] = c;
+  if (c.source === 'manual') creatorIndex[c.name.toLowerCase().trim() + '|manual_creators'] = c;
+}
 
   const results = [];
   for (const item of CONTENT_IDEAS) {
@@ -5747,7 +5750,13 @@ function rivalRadar(brandWeights, inputNameHint, topN) {
     const score = balancedOverlap(brandWeights, profile);
     if (score > 0) scored.push({ name, score });
   }
-  scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  scored.sort((a, b) => {
+  if (b.score !== a.score) return b.score - a.score;
+  const aHasEvidence = (RIVAL_AD_EVIDENCE[a.name.toLowerCase()] || []).length > 0;
+  const bHasEvidence = (RIVAL_AD_EVIDENCE[b.name.toLowerCase()] || []).length > 0;
+  if (aHasEvidence !== bHasEvidence) return aHasEvidence ? -1 : 1;
+  return a.name.localeCompare(b.name);
+});
   const top = scored.slice(0, topN || 3);
 
   return top.map(({ name, score }) => ({
