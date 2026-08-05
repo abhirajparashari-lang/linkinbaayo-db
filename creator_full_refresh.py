@@ -210,8 +210,9 @@ def resolve_channel(url):
     subs = int(item["statistics"].get("subscriberCount", 0))
     video_count = int(item["statistics"].get("videoCount", 0))
     description = item.get("snippet", {}).get("description", "")
-    return {"channel_id": channel_id, "uploads_playlist": uploads_playlist, "subs": subs, "vids": video_count, "description": description}
-
+    thumbnails = item.get("snippet", {}).get("thumbnails", {})
+    thumb = (thumbnails.get("medium") or thumbnails.get("default") or {}).get("url")
+    return {"channel_id": channel_id, "uploads_playlist": uploads_playlist, "subs": subs, "vids": video_count, "description": description, "thumb": thumb}
 
 def recent_video_ids(uploads_playlist, limit):
     data = api_get("playlistItems", {
@@ -259,6 +260,8 @@ def refresh_one(url, need_niche=False):
 
     if not stats:
         out = {"subs": ch["subs"], "vids": ch["vids"]}  # channel resolved but no recent videos found
+        if ch.get("thumb"):
+            out["thumb"] = ch["thumb"]
         if need_niche:
             weights = worker_classify(ch.get("description", ""))
             tag_string = weights_to_tag_string(weights) if weights else ""
@@ -280,6 +283,8 @@ def refresh_one(url, need_niche=False):
         "eng": eng,
         "cmt": cmt,
     }
+    if ch.get("thumb"):
+        out["thumb"] = ch["thumb"]
     if last_upload:
         out["lastUpload"] = last_upload
 
