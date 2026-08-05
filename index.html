@@ -5580,17 +5580,17 @@ function scoreCreatorCategory(categoryStr, brandWeights) {
   const tags = categoryStr.split("|").map(t => t.trim());
   const matchedCats = [];
   const matchedWeights = [];
-  for (const tag of tags) {
+  tags.forEach((tag, ti) => {
     for (const [brandCat, w] of Object.entries(brandWeights)) {
       const same = tag.toLowerCase() === brandCat.toLowerCase()
                 || tag.toLowerCase().includes(brandCat.toLowerCase())
                 || brandCat.toLowerCase().includes(tag.toLowerCase());
       if (same && !matchedCats.includes(brandCat)) {
         matchedCats.push(brandCat);
-        matchedWeights.push(w);
+        matchedWeights.push(w * (ti === 0 ? 1 : 0.5));
       }
     }
-  }
+  });
   if (!matchedWeights.length) return { score: 0, matched: [] };
   matchedWeights.sort((a, b) => b - a);
   let score = matchedWeights[0];
@@ -5737,6 +5737,13 @@ for (const c of unified) {
   const m = (url || '').match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   return m ? `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg` : null;
 }
+
+function brandDomain(brandName) {
+  return (brandName || '').toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+}
+function brandLogoUrl(brandName) {
+  return `https://logo.clearbit.com/${brandDomain(brandName)}`;
+}  
 
 // ── FEATURE 3: Rival Radar ───────────────────────────────────────────────
 function rivalRadar(brandWeights, inputNameHint, topN) {
@@ -6020,7 +6027,8 @@ html += `<a class="bm-content-card" href="${item.url}" target="_blank">
 <img src="${item.thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">
 <div class="bm-content-body">
 <div class="bm-content-title">${item.title}</div>
-<div class="bm-content-meta">${item.name} · ${item.views.toLocaleString()} views · ${item.eng}% eng ${item.hasProof ? '· <span class="proof-icon-inline">✓proof</span>' : ''}</div>
+<div class="bm-content-meta">${item.name} · ${item.views.toLocaleString()} views ${item.hasProof ? '· <span class="proof-icon-inline">✓proof</span>' : ''}</div>
+<div style="font-style:italic; color:#6b7280; font-size:11px; margin-top:2px;">${Number(item.eng).toFixed(1)}% eng</div>
 </div>
 </a>`;
 }
@@ -6041,7 +6049,7 @@ if (!content.length) html += `<p class="bm-empty-state">No genuinely on-topic co
     const adEvidence = RIVAL_AD_EVIDENCE[r.brand.toLowerCase()] || [];
     if (!filteredCreators.length && !adEvidence.length) continue;
     html += `<div class="bm-rival-block">
-    <div class="bm-rival-header">${r.brand} <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
+    <div class="bm-rival-header"><a href="https://${brandDomain(r.brand)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:inherit; vertical-align:middle;"><img src="${brandLogoUrl(r.brand)}" style="width:20px; height:20px; border-radius:4px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" referrerpolicy="no-referrer"><span style="display:none;">${r.brand}</span></a> <span class="bm-rival-score">similarity ${(r.score * 100).toFixed(0)}%</span></div>
     <div class="bm-content-grid">
 ${adEvidence.map(e => {
   const thumb = ytThumbFromUrl(e.url);
