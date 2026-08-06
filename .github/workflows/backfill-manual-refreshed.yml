@@ -1,0 +1,31 @@
+name: One-time backfill of manual_refreshed.json
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run backfill script
+        run: node backfill_manual_refreshed.js
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- manual_refreshed.json; then
+            echo "No changes to manual_refreshed.json — nothing to commit."
+          else
+            git add manual_refreshed.json
+            git commit -m "One-time backfill: register orphaned MANUAL_CREATORS in manual_refreshed.json"
+            git push
+          fi
