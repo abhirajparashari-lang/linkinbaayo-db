@@ -38,7 +38,7 @@ const ARRAY_FILES = [
 
 // The fields we're allowed to touch on each line. Everything else on the
 // object literal is preserved exactly as-is.
-const REFRESH_FIELDS = ['subs', 'views', 'eng', 'cmt', 'vids', 'lastUpload'];
+const REFRESH_FIELDS = ['subs', 'views', 'eng', 'cmt', 'vids', 'lastUpload', 'thumb'];
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
