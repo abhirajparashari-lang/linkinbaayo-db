@@ -29,6 +29,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const MANUAL_REFRESHED_PATH = path.join(__dirname, 'manual_refreshed.json');
 
 const HTML_PATH = path.join(__dirname, 'index.html');
 const PENDING_PATH = path.join(__dirname, 'pending_creators.json');
@@ -99,10 +100,27 @@ function main() {
     }
   }
 
-  if (resolved.length) {
+ if (resolved.length) {
     const newLines = resolved.map(recordToLine).join('\n');
     html = html.slice(0, endIdx) + '\n' + newLines + html.slice(endIdx);
     fs.writeFileSync(HTML_PATH, html, 'utf8');
+
+    // Also register these in manual_refreshed.json so creator_full_refresh.py
+    // keeps refreshing their stats (subs/views/eng/thumb) going forward —
+    // otherwise a promoted creator silently drops out of the daily refresh
+    // loop forever, since that script only touches records already present
+    // in its 5 source files.
+    let manualRefreshed = [];
+    if (fs.existsSync(MANUAL_REFRESHED_PATH)) {
+      manualRefreshed = JSON.parse(fs.readFileSync(MANUAL_REFRESHED_PATH, 'utf8'));
+    }
+    const alreadyTracked = new Set(manualRefreshed.map(r => (r.name || '').toLowerCase()));
+    for (const r of resolved) {
+      if (!alreadyTracked.has((r.name || '').toLowerCase())) {
+        manualRefreshed.push(r);
+      }
+    }
+    fs.writeFileSync(MANUAL_REFRESHED_PATH, JSON.stringify(manualRefreshed, null, 2), 'utf8');
   }
 
   fs.writeFileSync(PENDING_PATH, JSON.stringify(unresolved, null, 2), 'utf8');
