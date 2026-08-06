@@ -5447,17 +5447,17 @@ function meetsQualityFloor(c) {
 function buildUnifiedCreatorList() {
   const out = [];
   for (const c of MANUAL_CREATORS) {
-    out.push({ name: c.name, source: 'manual', category: c.niche, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
+    out.push({ name: c.name, thumb: c.thumb || null, source: 'manual', category: c.niche, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
   }
   for (const c of SPONSORED) {
     const proof = (c.promoEvidence && c.promoEvidence.length) ? c.promoEvidence[0] : null;
-    out.push({ name: c.name, source: 'sponsored', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: !!proof, url: sponsoredUrl(c.name), proofUrl: proof ? proof.videoUrl : null });
+    out.push({ name: c.name, thumb: c.thumb || null, source: 'sponsored', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: !!proof, url: sponsoredUrl(c.name), proofUrl: proof ? proof.videoUrl : null });
   }
   for (const c of SCRAPED) {
-    out.push({ name: c.name, source: 'scraped', category: c.niche, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
+    out.push({ name: c.name, thumb: c.thumb || null, source: 'scraped', category: c.niche, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
   }
   for (const c of TRENDS) {
-    out.push({ name: c.name, source: 'trends', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
+    out.push({ name: c.name, thumb: c.thumb || null, source: 'trends', category: c.category, subs: c.subs, eng: c.eng || 0, views: c.views || 0, hasProof: false, url: c.url || null, proofUrl: null });
   }
   return out.filter(c => meetsQualityFloor(c) && !(window.isCreatorHidden && window.isCreatorHidden(c.name, c.source)));
 }
