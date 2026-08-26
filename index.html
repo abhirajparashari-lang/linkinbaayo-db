@@ -8935,22 +8935,37 @@ renderReviewGrid();
     }, 150);
   }
 
-  function wrapRunBrandMatch(){
+function wrapRunBrandMatch(){
     if(typeof window.runBrandMatch !== 'function' || window.runBrandMatch.__redesignV3Wrapped) return;
     var original = window.runBrandMatch;
+    var analyzing = false;
+    function setAnalyzeButtonsDisabled(disabled){
+      var btns = document.querySelectorAll('button');
+      for(var i=0; i<btns.length; i++){
+        if(btns[i].textContent.trim() === 'Analyze') btns[i].disabled = disabled;
+      }
+    }
     var wrapped = function(){
+      if(analyzing) return; // a run is already in flight — ignore this click, no extra Gemini call
+      analyzing = true;
+      setAnalyzeButtonsDisabled(true);
       startAnalyzingUI();
+      function done(){
+        analyzing = false;
+        setAnalyzeButtonsDisabled(false);
+        stopAnalyzingUI();
+      }
       var result;
       try{
         result = original.apply(this, arguments);
       }catch(e){
-        stopAnalyzingUI();
+        done();
         throw e;
       }
       if(result && typeof result.then === 'function'){
-        result.then(stopAnalyzingUI, stopAnalyzingUI);
+        result.then(done, done);
       } else {
-        stopAnalyzingUI();
+        done();
       }
       return result;
     };
