@@ -9404,7 +9404,7 @@ function wrapRunBrandMatch(){
 
 var mostRecentDate = entries[0].date;
     var todaysCount = entries.filter(function (e) { return e.date === mostRecentDate; }).length;
-    var rows = entries.slice(0, 40).map(function (e) {
+    var rows = entries.map(function (e) {
       return '<tr>' +
         '<td style="padding:6px 8px;"><input type="checkbox" class="creator-select-cb" data-name="' + encodeURIComponent(e.name) + '" data-source="manual" data-url="' + encodeURIComponent(e.url || '') + '"></td>' +
         '<td style="padding:6px 8px;"><a href="' + e.url + '" target="_blank" style="color:#111827;font-weight:600;text-decoration:none;">' + e.name + '</a></td>' +
@@ -9425,7 +9425,7 @@ var mostRecentDate = entries[0].date;
       '<button id="bulk-remove-creators-btn" disabled style="padding:5px 12px;border-radius:6px;border:none;background:#991b1b;color:#fff;opacity:0.5;cursor:not-allowed;font-size:12px;">Remove selected (0)</button>' +
       '<span id="bulk-remove-creators-status" style="font-size:12px;color:#6b7280;"></span>' +
       '</div>' +
-      '<div style="max-height:280px;overflow-y:auto;">' +
+      '<div style="max-height:700px;overflow-y:auto;">' +
       '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<thead><tr style="text-align:left;border-bottom:1px solid #e5e7eb;color:#6b7280;">' +
       '<th style="padding:6px 8px;"><input type="checkbox" id="creator-select-all-cb"></th>' +
@@ -9498,7 +9498,7 @@ var mostRecentDate = entries[0].date;
         'style="background:#d1fae5;color:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">♻️ Restore</button>' +
         '</div>';
     }).join('');
-    box.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:8px;">🚫 Hidden Creators (' + hiddenList.length + ')</div>' + rows;
+    box.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:8px;">🚫 Hidden Creators (' + hiddenList.length + ')</div><div style="max-height:200px;overflow-y:auto;">' + rows + '</div>';
     box.querySelectorAll('button[data-restore-name]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         restoreCreator({ name: btn.getAttribute('data-restore-name'), source: btn.getAttribute('data-restore-source') });
