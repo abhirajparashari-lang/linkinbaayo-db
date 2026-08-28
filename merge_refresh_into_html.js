@@ -31,7 +31,7 @@ const HTML_PATH = path.join(__dirname, 'index.html');
 
 const ARRAY_FILES = [
   { arrayName: 'MANUAL_CREATORS', jsonFile: 'manual_refreshed.json' },
-  { arrayName: 'SPONSORED', jsonFile: 'sponsored_refreshed.json' },
+  { arrayName: 'SPONSORED', jsonFile: 'sponsored_refreshed_seed.json' },
   { arrayName: 'SCRAPED', jsonFile: 'scraped_refreshed.json' },
   { arrayName: 'TRENDS', jsonFile: 'trends_refreshed.json' },
 ];
