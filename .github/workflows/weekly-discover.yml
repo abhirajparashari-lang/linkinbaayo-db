@@ -1,0 +1,65 @@
+name: Weekly sponsored video discovery
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # Every Sunday at 03:00 UTC (8:30 AM IST)
+  workflow_dispatch:        # also triggerable manually
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Step 1 — Scan all creators' recent uploads for #ad / paid partnership keywords.
+      # Zero Gemini calls. ~1,460 YouTube API quota units total.
+      - name: Discover sponsored videos from recent uploads
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+        run: python discover_sponsored_videos.py
+
+      # Step 2 — For each pending video URL, fetch YouTube details and ask Gemini
+      # (via the Cloudflare Worker) to identify the brand. Gemini only fires on
+      # the small set of confirmed sponsored videos from step 1.
+      - name: Identify brands via Gemini (resolve pending queue)
+        env:
+          YOUTUBE_API_KEY_1: ${{ secrets.YOUTUBE_API_KEY_1 }}
+          YOUTUBE_API_KEY_2: ${{ secrets.YOUTUBE_API_KEY_2 }}
+        run: python resolve_sponsored_videos.py
+
+      # Step 3 — Merge resolved videos into index.html's SPONSORED array
+      # (adds promoEvidence to existing creators, or inserts new Sponsored Influencer rows).
+      - name: Merge sponsored videos into index.html
+        run: node merge_sponsored_videos_into_html.js
+
+      # Step 4 — Append the same resolved videos to content_refreshed.json
+      # with type:"sponsored" + brand + category, so Content Radar can surface them.
+      - name: Append sponsored videos to Content Radar data
+        run: node append_sponsored_to_content.js
+
+      # Step 5 — Fold updated content_refreshed.json into index.html's CONTENT array.
+      - name: Merge content into index.html
+        run: node merge_content_into_html.js
+
+      # Commit everything — index.html, content_refreshed.json,
+      # pending queue, resolutions, and the video ID cache.
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html \
+                  content_refreshed.json \
+                  pending_sponsored_videos.json \
+                  sponsored_video_resolutions.json \
+                  discovered_videos_cache.json
+          git diff --cached --quiet || \
+            git commit -m "Weekly sponsored video discovery ($(date -u +%Y-%m-%d))"
+          git push
