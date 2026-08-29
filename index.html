@@ -1015,6 +1015,18 @@ function removeCategoryPrompt(category) {
     <div class="stat"><div class="stat-val" id="s-content-total">—</div><div class="stat-label">Content Pieces</div></div>
     <div class="stat"><div class="stat-val" id="s-content-shown">—</div><div class="stat-label">Currently Shown</div></div>
   </div>
+  
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+  <button id="content-tab-organic" onclick="switchContentTab('organic')"
+    style="padding:6px 18px;border-radius:20px;border:none;background:#4f46e5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">
+    Top Content
+  </button>
+  <button id="content-tab-sponsored" onclick="switchContentTab('sponsored')"
+    style="padding:6px 18px;border-radius:20px;border:1px solid #e5e7eb;background:#fff;color:#6b7280;font-size:13px;font-weight:600;cursor:pointer;">
+    Brand Deals
+  </button>
+</div>
+  
   <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap; align-items:center;">
     <input id="content-search" type="text" placeholder="Search creator or title..." style="padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; flex:1; min-width:220px; font-size:14px;">
     <select id="content-source" style="padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
@@ -7749,15 +7761,20 @@ function timeAgo(iso) {
 }
 
 function renderContentCard(c) {
+  const isSponsored = c.type === 'sponsored';
+  const thumb = c.thumb || ytThumbFromUrl(c.url) || '';
+  const sourceCell = isSponsored
+    ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${c.brand || 'Brand Deal'}</span>`
+    : `<span style="color:${SOURCE_COLOR[c.source]};font-weight:600;">${SOURCE_LABEL[c.source]}</span>`;
   return `
 <tr style="border-bottom:1px solid #e5e7eb;">
-  <td style="padding:6px 8px;"><img src="${c.thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';" style="width:96px; height:54px; object-fit:cover; border-radius:4px; display:block;"></td>
-  <td style="padding:6px 8px; max-width:340px;"><a href="${c.url}" target="_blank" style="color:#111827; font-weight:600; font-size:13px; text-decoration:none; line-height:1.3;">${c.title}</a></td>
-  <td style="padding:6px 8px; font-size:13px; color:${SOURCE_COLOR[c.source]}; font-weight:600; white-space:nowrap;">${c.name}</td>
-  <td style="padding:6px 8px; font-size:12px; color:#6b7280; white-space:nowrap;">${SOURCE_LABEL[c.source]}</td>
-  <td style="padding:6px 8px; font-size:13px; text-align:right; white-space:nowrap;">${c.views.toLocaleString()}</td>
-  <td style="padding:6px 8px; font-size:13px; text-align:right; white-space:nowrap;">${c.eng.toFixed(1)}%</td>
-  <td style="padding:6px 8px; font-size:12px; color:#6b7280; white-space:nowrap;">${timeAgo(c.published)}</td>
+  <td style="padding:6px 8px;"><img src="${thumb}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';" style="width:96px;height:54px;object-fit:cover;border-radius:4px;display:block;"></td>
+  <td style="padding:6px 8px;max-width:340px;"><a href="${c.url}" target="_blank" style="color:#111827;font-weight:600;font-size:13px;text-decoration:none;line-height:1.3;">${c.title}</a></td>
+  <td style="padding:6px 8px;font-size:13px;color:${SOURCE_COLOR[c.source]||'#6b7280'};font-weight:600;white-space:nowrap;">${c.name}</td>
+  <td style="padding:6px 8px;font-size:12px;color:#6b7280;white-space:nowrap;">${sourceCell}</td>
+  <td style="padding:6px 8px;font-size:13px;text-align:right;white-space:nowrap;">${(c.views||0).toLocaleString()}</td>
+  <td style="padding:6px 8px;font-size:13px;text-align:right;white-space:nowrap;">${(c.eng||0).toFixed(1)}%</td>
+  <td style="padding:6px 8px;font-size:12px;color:#6b7280;white-space:nowrap;">${timeAgo(c.published)}</td>
 </tr>`;
 }
 
@@ -7765,10 +7782,19 @@ function renderContentGrid() {
   const search = document.getElementById('content-search').value.toLowerCase();
   const sourceFilter = document.getElementById('content-source').value;
   const sortMode = document.getElementById('content-sort').value;
+  const isSponsTab = contentTab === 'sponsored';
+
+  // Show/hide source filter — irrelevant on Brand Deals tab
+  const sourceEl = document.getElementById('content-source');
+  if (sourceEl) sourceEl.parentElement.style.display = isSponsTab ? 'none' : '';
 
   let filtered = CONTENT_IDEAS.filter(c => {
-    if (sourceFilter && c.source !== sourceFilter) return false;
-    if (search && !c.name.toLowerCase().includes(search) && !c.title.toLowerCase().includes(search)) return false;
+    const isSponsoredEntry = c.type === 'sponsored';
+    if (isSponsTab && !isSponsoredEntry) return false;
+    if (!isSponsTab && isSponsoredEntry) return false;
+    if (!isSponsTab && sourceFilter && c.source !== sourceFilter) return false;
+    if (search && !c.name.toLowerCase().includes(search) && !c.title.toLowerCase().includes(search)
+        && !(isSponsTab && (c.brand || '').toLowerCase().includes(search))) return false;
     return true;
   });
 
@@ -7776,25 +7802,46 @@ function renderContentGrid() {
   else if (sortMode === 'eng-desc') filtered.sort((a, b) => b.eng - a.eng);
   else if (sortMode === 'views-desc') filtered.sort((a, b) => b.views - a.views);
 
+  const col4Label = isSponsTab ? 'Brand' : 'Source';
+  const emptyMsg = isSponsTab
+    ? '<tr><td colspan="7" style="padding:32px;text-align:center;color:#9ca3af;font-size:13px;">No Brand Deals detected yet — runs weekly every Sunday.</td></tr>'
+    : '<tr><td colspan="7" style="padding:32px;text-align:center;color:#9ca3af;font-size:13px;">No results.</td></tr>';
+
   document.getElementById('content-grid').innerHTML = `
-<table style="width:100%; border-collapse:collapse;">
+<table style="width:100%;border-collapse:collapse;">
   <thead>
-    <tr style="border-bottom:2px solid #e5e7eb; text-align:left;">
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280;">Thumb</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280;">Title</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280;">Creator</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280;">Source</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280; text-align:right;">Views</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280; text-align:right;">Eng</th>
-      <th style="padding:6px 8px; font-size:12px; color:#6b7280;">Published</th>
+    <tr style="border-bottom:2px solid #e5e7eb;text-align:left;">
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;">Thumb</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;">Title</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;">Creator</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;">${col4Label}</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;text-align:right;">Views</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;text-align:right;">Eng</th>
+      <th style="padding:6px 8px;font-size:12px;color:#6b7280;">Published</th>
     </tr>
   </thead>
-  <tbody>${filtered.map(renderContentCard).join('')}</tbody>
+  <tbody>${filtered.length ? filtered.map(renderContentCard).join('') : emptyMsg}</tbody>
 </table>`;
   document.getElementById('s-content-shown').textContent = filtered.length;
 }
 
+let contentTab = 'organic'; // 'organic' | 'sponsored'
+
 document.getElementById('s-content-total').textContent = CONTENT_IDEAS.length;
+
+function switchContentTab(tab) {
+  contentTab = tab;
+  ['organic','sponsored'].forEach(t => {
+    const btn = document.getElementById('content-tab-' + t);
+    if (!btn) return;
+    const active = t === tab;
+    btn.style.background = active ? '#4f46e5' : '#fff';
+    btn.style.color = active ? '#fff' : '#6b7280';
+    btn.style.border = active ? 'none' : '1px solid #e5e7eb';
+  });
+  renderContentGrid();
+}
+
 document.getElementById('content-search').addEventListener('input', renderContentGrid);
 document.getElementById('content-source').addEventListener('change', renderContentGrid);
 document.getElementById('content-sort').addEventListener('change', renderContentGrid);
