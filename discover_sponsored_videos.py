@@ -40,9 +40,12 @@ SOURCE_FILES = [
 # Keyword signals — checked in title + description (case-insensitive)
 SPONSORED_KEYWORDS = [
     "includes paid promotion",
-    "#ad", "#sponsored", "#gifted", "#collab", "#paidpartnership",
-    "paid partnership", "sponsored by", "in collaboration with",
-    "gifted by", "partnered with", "powered by",
+    "#ad",
+    "#sponsored",
+    "#gifted",
+    "#paidpartnership",
+    "paid partnership",
+    "sponsored by",
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
