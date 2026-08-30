@@ -43,9 +43,12 @@ SPONSORED_KEYWORDS = [
     "#ad",
     "#sponsored",
     "#gifted",
+    "#collab",
     "#paidpartnership",
     "paid partnership",
     "sponsored by",
+    "gifted by",
+    "this video is sponsored",
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
