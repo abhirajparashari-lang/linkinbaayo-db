@@ -2,7 +2,7 @@ name: Weekly sponsored video discovery
 
 on:
   schedule:
-    - cron: "0 3 * * 0"   # Every Sunday at 03:00 UTC (8:30 AM IST)
+    - cron: "0 9 * * 0"   # Every Sunday at 03:00 UTC (8:30 AM IST)
   workflow_dispatch:        # also triggerable manually
 
 jobs:
