@@ -254,17 +254,19 @@ def main():
         creators_active += 1
         snippets = batch_fetch_snippets(new_ids)
         total_checked += len(snippets)
-        new_cache_ids.update(new_ids)  # mark all as seen whether or not sponsored
-
         for vid_id, snippet in snippets.items():
             video_url = f"https://youtube.com/watch?v={vid_id}"
             if video_url in skip_urls:
+                new_cache_ids.add(vid_id)  # already resolved, safe to cache
                 continue
             if is_sponsored(snippet):
                 title = snippet.get("title", "")[:70]
                 print(f"  ✅ {creator['name']}: {title}")
                 new_pending.append({"url": video_url, "addedDate": today_str})
                 skip_urls.add(video_url)
+                # Do NOT cache — keep discoverable until resolved
+            else:
+                new_cache_ids.add(vid_id)  # not sponsored, safe to cache
 
         if i % 200 == 0:
             print(f"  [{i}/{len(creators)}] checked so far...")

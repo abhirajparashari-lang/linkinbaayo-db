@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * merge_refresh_into_html.js — merges manual_refreshed.json,
- * sponsored_refreshed.json, scraped_refreshed.json, trends_refreshed.json
+ * sponsored_refreshed_seed.json, scraped_refreshed.json, trends_refreshed.json
  * into index.html's MANUAL_CREATORS / SPONSORED / SCRAPED / TRENDS arrays.
  *
  * This is a targeted, line-level merge, not a full re-serialization: for
